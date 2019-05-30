@@ -1,0 +1,45 @@
+cabal-version:       2.2
+name:                GA-PFP
+version:             0.1.0.0
+-- synopsis:
+-- description:
+license:             GPL-3.0-only
+license-file:        LICENSE
+author:              David Pätzel
+maintainer:          david.paetzel@informatik.uni-augsburg.de
+-- copyright:
+-- category:
+build-type:          Simple
+-- extra-source-files:  CHANGELOG.md
+
+
+library
+  build-depends:       base ^>=4.12.0.0
+                     , MonadRandom
+                     , monad-loops
+                     , random
+                     , random-fu
+                     , random-shuffle
+                     , protolude
+                     , QuickCheck
+                     , quickcheck-instances
+                     , text
+  default-language:    Haskell2010
+  hs-source-dirs:      src
+  exposed-modules:     GA
+                     , Seminar
+                     , Pretty
+                     , SS19
+
+
+-- executable GA-PFP
+--   build-depends:       base ^>=4.12.0.0
+--                      , monad-loops
+--                      , random-fu
+--                      , protolude
+--   default-language:    Haskell2010
+--   -- exposed-modules:
+--   hs-source-dirs:      src
+--   main-is:             Main.hs
+--   -- other-extensions:
+--   -- other-modules:
