@@ -3,13 +3,12 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module GA where
 
--- NEXT commit everything
--- TODO add factory floor optimizer:
+-- MAYBE add factory floor optimizer:
 -- [2019-07-15] GA that optimizes factory floor
 --   - data: graph of workstations with edge weights being the number of walks between them
 --   - desired: optimal configuration that reduces crossings
@@ -21,11 +20,11 @@ import qualified Data.List.NonEmpty as NE
 import Data.Random
 import Data.Random.Distribution.Categorical
 import Data.Random.Sample
+import Pipes
 import Pretty
 import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances
-import Test.QuickCheck.Monadic
 
 -- TODO Enforce this being > 0
 type N = Int
@@ -135,32 +134,30 @@ children2 nX i1 i2 = do
 The @k@ best individuals in the population when comparing using the supplied
 function.
 -}
-bestBy :: (Individual i, Monad m) => N -> (i -> m R) -> Population i -> m [i]
-bestBy k f =
+bestsBy :: (Individual i, Monad m) => N -> (i -> m R) -> Population i -> m [i]
+bestsBy k f =
   fmap (NE.take k . fmap fst . NE.sortBy (comparing (Down . snd)))
     . traverse (\i -> (i,) <$> f i)
     . unPop
 
--- TODO no trivial instance for worst
--- prop_worstLength :: Int -> Population Int -> Property
--- prop_worstLength k pop = monadicIO $ (k ==) . length <$> worst k pop
 {-|
 The @k@ worst individuals in the population.
 -}
 worst :: (Individual i, Monad m) => N -> Population i -> m [i]
-worst = flip bestBy (fmap (1 /) . fitness)
+-- TODO (1 /) might not be stable regarding floating point precision
+worst = flip bestsBy (fmap (1 /) . fitness)
 
 {-|
 The @k@ best individuals in the population.
 -}
 bests :: (Individual i, Monad m) => N -> Population i -> m [i]
-bests = flip bestBy fitness
+bests = flip bestsBy fitness
 
 {-|
 Runs the GA and prints the @nResult@ best individuals.
 -}
 ga' nParents nX pop term nResult = do
-  pop <- ga nParents nX pop term
+  pop <- run nParents nX pop term
   res <- bests nResult pop
   sequence $ format <$> res
   where
@@ -170,6 +167,19 @@ ga' nParents nX pop term nResult = do
       f <- liftIO $ fitness s
       putText $ show f <> "\n" <> pretty s
 
+step
+  :: (Individual i, MonadRandom m, Monad m)
+  => N
+  -> N
+  -> Population i
+  -> m (Population i)
+step nParents nX pop = do
+  is <- proportionate nParents pop
+  i :| is' <- children nX is
+  iWorsts <- worst nParents pop
+  let popClean = foldr L.delete (NE.toList . unPop $ pop) iWorsts
+  return . Pop $ i :| is' <> popClean
+
 {-|
 Runs the GA, using in each iteration
  - @nParents@ parents for creating @nParents@ children and
@@ -177,40 +187,27 @@ Runs the GA, using in each iteration
 
 It terminates after the termination criterion is fulfilled.
 -}
-ga
-  :: (Individual i, MonadRandom m, Monad m)
+run
+  :: (Individual i, Monad m, MonadRandom m)
   => N
   -> N
   -> Population i
   -> Termination i
-  -> m (Population i)
-ga nParents nX pop term = ga' nParents nX pop term 0
+  -> Producer (Int, Maybe R) m (Population i)
+run nParents nX pop term = step' 0 pop
   where
-    ga'
-      :: (Individual i, MonadRandom m, Monad m)
-      => N
-      -> N
-      -> Population i
-      -> Termination i
-      -> N
-      -> m (Population i)
-    ga' nParents nX pop term t = do
-      -- trace (show t <> ": " <> show (length pop)) $ return ()
-      is <- proportionate nParents pop
-      i :| is' <- children nX is
-      -- traceShow (length is') $ return ()
-      iWorsts <- worst nParents pop
-      -- traceShow (length iWorsts) $ return ()
-      let popClean = foldr L.delete (NE.toList . unPop $ pop) iWorsts
-      -- traceShow (length popClean) $ return ()
-      -- for the fromList to not fail, n < length pop
-      -- replace the worst ones
-      let pop' = Pop $ i :| is' <> popClean
-      -- replace fitness proportionally
-      -- let pop' = Pop <$> proportionate (length pop) (pop <> Pop is')
-      if term pop' t
-        then return pop'
-        else ga' nParents nX pop' term (t + 1)
+    step' t pop
+      | term pop t = return pop
+      | otherwise = do
+        pop' <- lift $ step nParents nX pop
+        iBests <- lift $ bests 1 pop'
+        case headMay iBests of
+          Just iBest -> do
+            f <- fitness iBest
+            yield (t, Just f)
+          Nothing ->
+            yield (t, Nothing)
+        step' (t + 1) pop'
 
 -- * Termination criteria
 

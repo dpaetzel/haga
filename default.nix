@@ -1,5 +1,5 @@
-{ mkDerivation, base, bytestring, cassava, monad-loops, MonadRandom
-, protolude, QuickCheck, quickcheck-instances, random, random-fu
+{ mkDerivation, base, monad-loops, MonadRandom, pipes, protolude
+, QuickCheck, quickcheck-instances, random, random-fu
 , random-shuffle, stdenv, text
 }:
 mkDerivation {
@@ -9,13 +9,12 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base cassava monad-loops MonadRandom protolude QuickCheck
+    base monad-loops MonadRandom pipes protolude QuickCheck
     quickcheck-instances random random-fu random-shuffle text
   ];
   executableHaskellDepends = [
-    base bytestring cassava monad-loops MonadRandom protolude
-    QuickCheck quickcheck-instances random random-fu random-shuffle
-    text
+    base monad-loops MonadRandom pipes protolude QuickCheck
+    quickcheck-instances random random-fu random-shuffle text
   ];
   license = stdenv.lib.licenses.gpl3;
 }
