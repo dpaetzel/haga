@@ -1,17 +1,12 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-
+{-# LANGUAGE OverloadedStrings #-}
 
 import Protolude
-
-
-import GA
-import SS19
-
+import WS19
 
 main = do
   pop <- mkPop
-  ga' 2 1 pop (\_ t -> t > 100) 10
-  putStrLn "Done."
-
+  ga' 2 1 pop (steps 10000) 10
+  putText "Done."
 
 mkPop = population 100 (I prios [])

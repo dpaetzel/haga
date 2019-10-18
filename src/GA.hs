@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module GA where
 
@@ -161,7 +162,13 @@ Runs the GA and prints the @nResult@ best individuals.
 ga' nParents nX pop term nResult = do
   pop <- ga nParents nX pop term
   res <- bests nResult pop
-  sequence $ putText . pretty <$> res
+  sequence $ format <$> res
+  where
+    -- TODO this has to be done nicer
+    format :: (Individual i, MonadIO m, Pretty i) => i -> m ()
+    format s = do
+      f <- liftIO $ fitness s
+      putText $ show f <> "\n" <> pretty s
 
 {-|
 Runs the GA, using in each iteration
@@ -194,9 +201,11 @@ ga nParents nX pop term = ga' nParents nX pop term 0
       -- traceShow (length is') $ return ()
       iWorsts <- worst nParents pop
       -- traceShow (length iWorsts) $ return ()
+      let popClean = foldr L.delete (NE.toList . unPop $ pop) iWorsts
+      -- traceShow (length popClean) $ return ()
       -- for the fromList to not fail, n < length pop
       -- replace the worst ones
-      let pop' = Pop $ i :| is' <> foldr L.delete (NE.toList . unPop $ pop) iWorsts
+      let pop' = Pop $ i :| is' <> popClean
       -- replace fitness proportionally
       -- let pop' = Pop <$> proportionate (length pop) (pop <> Pop is')
       if term pop' t

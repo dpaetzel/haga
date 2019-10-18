@@ -45,39 +45,42 @@ instance Pretty Student where
 The seminar GA is about giving topics to students. If there are not enough
 topics, some students might get assigned 'NoTopic'.
 -}
-data Topic
-  = Topic Text
-  | NoTopic
+data T
+  = T Text
+  | NoT
   deriving (Show)
 
 {-|
 'Topic' is not 'Maybe' because this 'Eq' instance is different ('Nothing' @==@
 'Nothing' but 'NoTopic' @/=@ 'NoTopic').
 -}
-instance Eq Topic where
-  Topic x == Topic y = x == y
-  NoTopic == _ = False
-  _ == NoTopic = False
+instance Eq T where
+  T x == T y = x == y
+  -- NoT == _ = False
+  -- _ == NoT = False
+  NoT == NoT = True
+  NoT == _ = False
+  _ == NoT = False
 
-instance Arbitrary Topic where
-  arbitrary = oneof [Topic <$> arbitrary, return NoTopic]
+instance Arbitrary T where
+  arbitrary = oneof [T <$> arbitrary, return NoT]
 
-instance Pretty Topic where
-  pretty (Topic s) = s
-  pretty NoTopic = "Kein Thema"
+instance Pretty T where
+  pretty (T s) = s
+  pretty NoT = "Kein Thema"
 
-topicToMaybe (Topic x) = Just x
-topicToMaybe NoTopic = Nothing
+topicToMaybe (T x) = Just x
+topicToMaybe NoT = Nothing
 
-type Priorities = [(Student, [(Topic, Int)])]
+type Priorities = [(Student, [(T, Int)])]
 
 students :: Priorities -> [Student]
 students = fmap fst
 
-topics :: Priorities -> [Topic]
+topics :: Priorities -> [T]
 topics p = topics' ++ padding
   where
-    padding = replicate (length (students p) - length topics') NoTopic
+    padding = replicate (length (students p) - length topics') NoT
     topics' = nub . join $ fmap fst . snd <$> p
 
 {-|
@@ -85,11 +88,11 @@ The priority of topics that have not been assigned a priority is the sum of all
 priorities given by all the students. The priority of 'NoTopic' is one more than
 that value.
 -}
-prioOf :: Priorities -> Student -> Topic -> Int
-prioOf p _ NoTopic = (1 +) . sum $ (sum . fmap snd) . snd <$> p
-prioOf p s t = maybe (prioOf p s NoTopic) identity $ lookup s p >>= lookup t
+prioOf :: Priorities -> Student -> T -> Int
+prioOf p _ NoT = (1 +) . sum $ (sum . fmap snd) . snd <$> p
+prioOf p s t = maybe (prioOf p s NoT) identity $ lookup s p >>= lookup t
 
-type Assignment = [(Student, Topic)]
+type Assignment = [(Student, T)]
 
 data I = I Priorities Assignment
   deriving (Eq, Show)
@@ -98,10 +101,10 @@ instance Pretty I where
   pretty i@(I p a) =
     T.unlines (gene <$> a)
     where
-      gene :: (Student, Topic) -> Text
+      gene :: (Student, T) -> Text
       gene (s, t) =
         pretty s <> ": " <> pretty t <> prio s t
-      prio :: Student -> Topic -> Text
+      prio :: Student -> T -> Text
       prio s t = " (" <> show (prioOf p s t) <> ")"
 
 instance Individual I where
@@ -110,7 +113,8 @@ instance Individual I where
     sample $ I p . zip (nub $ students p) <$> shuffle (nub $ topics p)
 
   fitness (I p a) =
-    return . (1 /) . sum $ fromIntegral . uncurry (prioOf p) <$> a
+    return . (fromIntegral (prioOf p undefined NoT) /) . sum
+      $ fromIntegral . uncurry (prioOf p) <$> a
 
   mutate (I p a) = do
     x <- sample $ Uniform 0 (length a - 1)
