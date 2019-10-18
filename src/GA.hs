@@ -174,11 +174,14 @@ step
   -> Population i
   -> m (Population i)
 step nParents nX pop = do
+  iBests <- bests 1 pop
   is <- proportionate nParents pop
   i :| is' <- children nX is
   iWorsts <- worst nParents pop
-  let popClean = foldr L.delete (NE.toList . unPop $ pop) iWorsts
-  return . Pop $ i :| is' <> popClean
+  let popClean = foldr L.delete (NE.toList . unPop $ pop) $ iBests <> iWorsts
+  -- TODO why does this not work? (we should use it!)
+  -- Pop <$> (shuffle' . NE.nub $ i :| is' <> popClean <> iBests)
+  return . Pop . NE.nub $ i :| is' <> popClean <> iBests
 
 {-|
 Runs the GA, using in each iteration

@@ -20,7 +20,6 @@ main = do
   res <- bests 5 pop'
   sequence_ $ format <$> res
   where
-    format :: (Individual i, MonadIO m, Pretty i) => i -> m ()
     format s = do
       f <- liftIO $ fitness s
       putErrText $ show f <> "\n" <> pretty s
