@@ -84,13 +84,17 @@ topics p = topics' ++ padding
     topics' = nub . join $ fmap fst . snd <$> p
 
 {-|
-The priority of topics that have not been assigned a priority is the sum of all
-priorities given by all the students. The priority of 'NoTopic' is one more than
-that value.
+The sum of all priorities given by all students.
+-}
+sumOfAll p = (1 +) . sum $ (sum . fmap snd) . snd <$> p
+
+{-|
+The priority of 'NoTopic' is 101. The priority of topics that have not been
+assigned a priority by a student is one less than this value.
 -}
 prioOf :: Priorities -> Student -> T -> Int
-prioOf p _ NoT = (1 +) . sum $ (sum . fmap snd) . snd <$> p
-prioOf p s t = maybe (prioOf p s NoT) identity $ lookup s p >>= lookup t
+prioOf _ _ NoT = 101
+prioOf p s t = maybe (prioOf p s NoT - 1) identity $ lookup s p >>= lookup t
 
 type Assignment = [(Student, T)]
 
@@ -110,10 +114,10 @@ instance Pretty I where
 instance Individual I where
 
   new (I p _) =
-    sample $ I p . zip (nub $ students p) <$> shuffle (nub $ topics p)
+    sample $ I p . zip (nub $ students p) <$> shuffle (topics p)
 
   fitness (I p a) =
-    return . (fromIntegral (prioOf p undefined NoT) /) . sum
+    return . negate . sum
       $ fromIntegral . uncurry (prioOf p) <$> a
 
   mutate (I p a) = do
