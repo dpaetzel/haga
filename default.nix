@@ -1,6 +1,7 @@
-{ mkDerivation, base, monad-loops, MonadRandom, pipes, protolude
-, QuickCheck, quickcheck-instances, random, random-fu
-, random-shuffle, stdenv, text
+{ mkDerivation, base, Cabal, cabal-test-quickcheck, extra
+, monad-loops, MonadRandom, pipes, protolude, QuickCheck
+, quickcheck-instances, random, random-fu, random-shuffle, stdenv
+, text
 }:
 mkDerivation {
   pname = "ga";
@@ -9,12 +10,17 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base monad-loops MonadRandom pipes protolude QuickCheck
+    base extra monad-loops MonadRandom pipes protolude QuickCheck
     quickcheck-instances random random-fu random-shuffle text
   ];
   executableHaskellDepends = [
-    base monad-loops MonadRandom pipes protolude QuickCheck
+    base extra monad-loops MonadRandom pipes protolude QuickCheck
     quickcheck-instances random random-fu random-shuffle text
+  ];
+  testHaskellDepends = [
+    base Cabal cabal-test-quickcheck extra monad-loops MonadRandom
+    pipes protolude QuickCheck quickcheck-instances random random-fu
+    random-shuffle text
   ];
   license = stdenv.lib.licenses.gpl3;
 }

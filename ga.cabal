@@ -15,15 +15,16 @@ build-type:          Simple
 
 library
   build-depends:       base ^>=4.12.0.0
+                     , extra
                      , MonadRandom
                      , monad-loops
-                     , random
-                     , random-fu
-                     , random-shuffle
                      , pipes
                      , protolude
                      , QuickCheck
                      , quickcheck-instances
+                     , random
+                     , random-fu
+                     , random-shuffle
                      , text
   default-language:    Haskell2010
   hs-source-dirs:      src
@@ -33,14 +34,28 @@ library
                      , SS19
                      , WS19
 
-
 executable ga
   build-depends:       base ^>=4.12.0.0
+                     , extra
                      , MonadRandom
                      , monad-loops
+                     , pipes
+                     , protolude
+                     , QuickCheck
+                     , quickcheck-instances
                      , random
                      , random-fu
                      , random-shuffle
+                     , text
+  default-language:    Haskell2010
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  other-modules:       GA
+                     , Seminar
+                     , Pretty
+                     , SS19
+                     , WS19
+
                      , pipes
                      , protolude
                      , QuickCheck
