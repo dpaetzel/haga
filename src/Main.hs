@@ -15,7 +15,7 @@ main = do
   hSetBuffering stdout NoBuffering
   pop <- mkPop
   pop' <- runEffect $ for (run 2 1 pop (steps 100)) log
-  res <- bests 5 pop
+  res <- bests 5 pop'
   sequence_ $ format <$> res
   where
     format :: (Individual i, MonadIO m, Pretty i) => i -> m ()
