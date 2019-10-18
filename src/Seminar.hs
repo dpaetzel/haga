@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Seminar where
 
@@ -161,3 +162,6 @@ valid :: Assignment -> Bool
 valid a =
   length a == length (nub $ fst <$> a)
     && length a == length (nub $ snd <$> a)
+return []
+
+runTests = $quickCheckAll
