@@ -4,7 +4,8 @@
 
 module Seminar where
 
-import Data.List ((!!), lookup, nub, zipWith3)
+import Data.List ((!!), lookup, zipWith3)
+import Data.List.Extra (nub)
 import Data.Random
 import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
@@ -158,10 +159,50 @@ switch i' j' xs
      in left ++ [(fst ei, snd ej)] ++ middle ++ [(fst ej, snd ei)] ++ right
   | otherwise = xs
 
+{-|
+Whether the given assignment is valid (every student occurs at most once, as
+does every topic).
+-}
 valid :: Assignment -> Bool
-valid a =
-  length a == length (nub $ fst <$> a)
-    && length a == length (nub $ snd <$> a)
+valid a = unique students && (unique . filter (/= NoT)) topics
+  where
+    students = fmap fst a
+    topics = fmap snd a
+
+{-|
+Whether the given list only contains unique elements.
+-}
+unique xs = length xs == (length . nub) xs
+
+prop_valid_empty = valid []
+
+prop_valid_dupNoT ss = unique ss ==> valid (ss `zip` repeat NoT)
+
+prop_valid_dupT ss ts =
+  unique ss
+    && unique ts
+    && length ss > length ts
+    && not (null ts)
+    && NoT `notElem` ts
+      ==> not . valid $ ss `zip` cycle ts
+
+prop_valid_noDups =
+  forAll noDupsList $ \ss ->
+    forAll noDupsList $ \ts ->
+                          valid $ ss `zip` ts
+
+{-|
+Generator for lists fulfilling 'unique', that is, only containing unique
+elements.
+-}
+noDupsList :: (Arbitrary a, Eq a) => Gen [a]
+noDupsList = nub <$> arbitrary
+
+prop_noDupsList = forAll (noDupsList :: Gen [Int]) unique
+
+-- NEXT find out why after x thousand repetitions, sometimes, bad solutions
+-- occur with duplicate students
+-- probably due to error in 'switch' implementation
 return []
 
 runTests = $quickCheckAll
