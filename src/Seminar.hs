@@ -146,8 +146,12 @@ instance Individual I where
     where
       f x v1 v2 i = if i <= x then v1 else v2
 
+{-|
+Swaps topics at positions 'i'' and 'j'' in the given assignment.
+-}
 switch :: Int -> Int -> Assignment -> Assignment
 switch i' j' xs
+  | i' == j' = xs
   | 0 <= i' && i' < length xs && 0 <= j' && j' < length xs =
     let i = min i' j'
         j = max i' j'
@@ -158,6 +162,8 @@ switch i' j' xs
         right = drop (j + 1) xs
      in left ++ [(fst ei, snd ej)] ++ middle ++ [(fst ej, snd ei)] ++ right
   | otherwise = xs
+
+prop_switch_keepsValid i j xs = valid xs == valid (switch i j xs)
 
 {-|
 Whether the given assignment is valid (every student occurs at most once, as
