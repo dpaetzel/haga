@@ -182,20 +182,22 @@ unique xs = length xs == (length . nub) xs
 
 prop_valid_empty = valid []
 
-prop_valid_dupNoT ss = unique ss ==> valid (ss `zip` repeat NoT)
+prop_valid_dupNoT =
+  forAll noDupsList $ \ss ->
+    valid (ss `zip` repeat NoT)
 
-prop_valid_dupT ss ts =
-  unique ss
-    && unique ts
-    && length ss > length ts
-    && not (null ts)
-    && NoT `notElem` ts
-      ==> not . valid $ ss `zip` cycle ts
+prop_valid_dupT =
+  forAll noDupsList $ \ss ->
+    forAll noDupsList $ \ts' ->
+      let ts = filter (/= NoT) ts'
+       in length ss > length ts && not (null ts)
+            ==> not . valid
+            $ ss `zip` cycle ts
 
 prop_valid_noDups =
   forAll noDupsList $ \ss ->
     forAll noDupsList $ \ts ->
-                          valid $ ss `zip` ts
+      valid $ ss `zip` ts
 
 {-|
 Generator for lists fulfilling 'unique', that is, only containing unique
