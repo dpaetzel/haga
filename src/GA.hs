@@ -26,6 +26,19 @@ import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances
 
+-- TODO using sample here was a quick hack
+{-|
+Shuffles a non-empty list.
+-}
+shuffle' :: (MonadRandom m) => NonEmpty a -> m (NonEmpty a)
+shuffle' xs = do
+  i <- sample . uniform 0 $ NE.length xs - 1
+  let x = xs NE.!! i
+  xs' <- sample . shuffle $ deleteI i xs
+  return $ x :| xs'
+  where
+    deleteI i xs = fst (NE.splitAt (i - 1) xs) ++ snd (NE.splitAt i xs)
+
 -- TODO Enforce this being > 0
 type N = Int
 
@@ -130,6 +143,7 @@ children2 nX i1 i2 = do
   i6 <- mutate i4
   return $ i5 :| [i6]
 
+-- TODO there should be some shuffle here
 {-|
 The @k@ best individuals in the population when comparing using the supplied
 function.
@@ -166,6 +180,8 @@ ga' nParents nX pop term nResult = do
     format s = do
       f <- liftIO $ fitness s
       putText $ show f <> "\n" <> pretty s
+
+-- TODO add top x percent selection (select n guys, sort by fitness first)
 
 step
   :: (Individual i, MonadRandom m, Monad m)
