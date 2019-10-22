@@ -7,6 +7,20 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 
+{-|
+Module      : GA
+Description : Abstract genetic algorithm
+Copyright   : David Pätzel, 2019
+License     : GPL-3
+Maintainer  : David Pätzel <david.paetzel@posteo.de>
+Stability   : experimental
+
+Simplistic abstract definition of a genetic algorithm.
+
+In order to use it for a certain problem, basically, you have to make your
+solution type an instance of 'Individual' and then simply call the 'run'
+function.
+-}
 module GA where
 
 import Control.Arrow hiding (first)
@@ -24,29 +38,22 @@ import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances
 import Test.QuickCheck.Monadic
 
--- TODO there should be a few shuffles here
+-- TODO there should be a few 'shuffle's here
 
 -- TODO enforce this being > 0
 type N = Int
 
 type R = Double
 
--- TODO an alternative could be
--- data I a
---   = I
---       { mutate :: m (I a),
---         crossover1 :: (MonadRandom m) => I a -> m (Maybe (I a, I a))
---       }
 class Eq i => Individual i where
 
   {-|
   Generates a completely random individual given an existing individual.
   
   We have to add @i@ here as a parameter in order to be able to inject stuff.
-  
-  TODO This (and also, Seminar.I, which contains an ugly parameter @p@) has to
-  be done nicer!
   -}
+  -- TODO This (and also, Seminar.I, which contains an ugly parameter @p@) has
+  -- to be done nicer!
   new :: (MonadRandom m) => i -> m i
 
   {-|
@@ -61,7 +68,6 @@ class Eq i => Individual i where
 
   crossover1 :: (MonadRandom m) => i -> i -> m (Maybe (i, i))
 
-  -- TODO Perhaps rather add a 'features' function (and parametrize select1 etc. with fitness function)?
   fitness :: (Monad m) => i -> m R
 
   {-|
@@ -71,7 +77,7 @@ class Eq i => Individual i where
   be derived through recursion and a monad combinator (which is also the default
   implementation).
   -}
-  crossover :: (MonadRandom m) => Int -> i -> i -> m (Maybe (i, i))
+  crossover :: (MonadRandom m) => N -> i -> i -> m (Maybe (i, i))
   crossover n i1 i2
     | n <= 0 = return $ Just (i1, i2)
     | otherwise = do
@@ -79,7 +85,8 @@ class Eq i => Individual i where
       maybe (return Nothing) (uncurry (crossover (n - 1))) isM
 
 {-|
-Needed for QuickCheck tests, very simplistic implementation.
+Needed for QuickCheck tests, for now, a very simplistic implementation should
+suffice.
 -}
 instance Individual Integer where
 
@@ -91,6 +98,9 @@ instance Individual Integer where
 
   fitness = return . fromIntegral . negate
 
+{-|
+Populations are just basic non-empty lists.
+-}
 type Population i = NonEmpty i
 
 {-|
@@ -114,9 +124,13 @@ proportionate n pop
   | otherwise = (:|) <$> proportionate1 pop <*> return []
 
 {-|
-Produce offspring circularly.
+Produces offspring circularly from the given list of parents.
 -}
-children :: (Individual i, MonadRandom m) => N -> NonEmpty i -> m (NonEmpty i)
+children
+  :: (Individual i, MonadRandom m)
+  => N -- ^ The @nX@ of the @nX@-point crossover operator
+  -> NonEmpty i
+  -> m (NonEmpty i)
 children _ (i :| []) = (:| []) <$> mutate i
 children nX (i1 :| [i2]) = children2 nX i1 i2
 children nX (i1 :| i2 : is') =
@@ -182,6 +196,9 @@ bests :: (Individual i, Monad m) => N -> Population i -> m (NonEmpty i, [i])
 bests = flip bestsBy fitness
 
 -- TODO add top x percent parent selection (select n guys, sort by fitness first)
+{-|
+Performs one iteration of the genetic algorithm.
+-}
 step
   :: (Individual i, MonadRandom m, Monad m)
   => N -- ^ number of parents @nParents@ for creating @nParents@ children
