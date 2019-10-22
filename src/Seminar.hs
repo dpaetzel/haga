@@ -1,11 +1,12 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Seminar where
 
-import Data.List ((!!), lookup, zipWith3)
-import Data.List.Extra (nub)
+import Data.List ((!!), (\\), lookup, zipWith3)
+import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.Random
 import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
@@ -14,91 +15,91 @@ import Pretty
 import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances
+import Test.QuickCheck.Monadic (assert, monadicIO)
 
-data Name
-  = N
-      { firstName :: Text,
-        lastName :: Text
-      }
+instance Pretty Text where
+  pretty = identity
+
+type Student = Text
+
+type Topic = Text
+
+instance Pretty (Maybe Topic) where
+  pretty (Just t) = t
+  pretty Nothing = "Kein Thema"
+
+newtype Priorities = P { unP ::  [(Student, [(Topic, Int)])] }
   deriving (Eq, Show)
 
-instance Arbitrary Name where
-  arbitrary = N <$> arbitrary <*> arbitrary
-
-instance Pretty Name where
-  pretty (N f l) = f <> " " <> l
-
-type EMail = Text
-
-data Student
-  = S
-      { name :: Name,
-        email :: EMail
-      }
-  deriving (Eq, Show)
-
-instance Arbitrary Student where
-  arbitrary = S <$> arbitrary <*> arbitrary
-
-instance Pretty Student where
-  pretty (S n e) = pretty n <> " <" <> e <> ">"
+instance Arbitrary Priorities where
+  arbitrary = priorities <$> Test.QuickCheck.arbitrary
 
 {-|
-The seminar GA is about giving topics to students. If there are not enough
-topics, some students might get assigned 'NoTopic'.
+Smart constructor for priority lists.
+
+Completes a priority list, that is, if students did not assign priorities to
+certain topics, adds these topics to their respective priority lists having a
+priority of one less than the lowest priority assigned by them.
+
+In addition, throws out all but the first occurence of each topic in a student's
+list (i.e. removes assignments of multiple priorities to one topic for each
+student) as well as all but the first occurrence of each student.
 -}
-data T
-  = T Text
-  | NoT
-  deriving (Show)
-
-{-|
-'Topic' is not 'Maybe' because this 'Eq' instance is different ('Nothing' @==@
-'Nothing' but 'NoTopic' @/=@ 'NoTopic').
--}
-instance Eq T where
-  T x == T y = x == y
-  -- NoT == _ = False
-  -- _ == NoT = False
-  NoT == NoT = True
-  NoT == _ = False
-  _ == NoT = False
-
-instance Arbitrary T where
-  arbitrary = oneof [T <$> arbitrary, return NoT]
-
-instance Pretty T where
-  pretty (T s) = s
-  pretty NoT = "Kein Thema"
-
-topicToMaybe (T x) = Just x
-topicToMaybe NoT = Nothing
-
-type Priorities = [(Student, [(T, Int)])]
-
-students :: Priorities -> [Student]
-students = fmap fst
-
-topics :: Priorities -> [T]
-topics p = topics' ++ padding
+priorities :: [(Student, [(Topic, Int)])] -> Priorities
+priorities p = P . nubOrdOn fst $ second priorities1 <$> p
   where
-    padding = replicate (length (students p) - length topics') NoT
-    topics' = nub . join $ fmap fst . snd <$> p
+    priorities1 :: [(Topic, Int)] -> [(Topic, Int)]
+    priorities1 [] =
+      topics p `zip` repeat 1
+    priorities1 ps =
+      let tLacking = topics p \\ (fst <$> ps) :: [Topic]
+          pWorst = maximum (snd <$> ps) + 1 :: Int
+       in nubOrdOn fst $ ps ++ (tLacking `zip` repeat pWorst)
+    topics = nubOrd . concatMap (fmap fst . snd)
+
+prop_priorities_allListsSameLength :: [(Student, [(Topic, Int)])] -> Bool
+prop_priorities_allListsSameLength p =
+  case unP . priorities $ p of
+    [] -> True
+    (s : ss) -> all (((length . snd) s ==) . length . snd) ss
 
 {-|
-The sum of all priorities given by all students.
+The students that assigned priorities to topics.
 -}
-sumOfAll p = (1 +) . sum $ (sum . fmap snd) . snd <$> p
+students :: Priorities -> [Student]
+students = fmap fst . unP
 
 {-|
-The priority of 'NoTopic' is 101. The priority of topics that have not been
-assigned a priority by a student is one less than this value.
--}
-prioOf :: Priorities -> Student -> T -> Int
-prioOf _ _ NoT = 101
-prioOf p s t = maybe (prioOf p s NoT - 1) identity $ lookup s p >>= lookup t
+The topics students assigned priorities to.
 
-type Assignment = [(Student, T)]
+Since 'Priorities' objects are well-formed due to the smart constructor, we can
+simply return the topics the first student assigned priorities to.
+-}
+topics :: Priorities -> [Topic]
+topics (P []) = []
+topics (P (s : _)) = fmap fst . snd $ s
+
+{-|
+The priority value given by a student to a topic.
+-}
+prioOf :: Priorities -> Student -> Topic -> Int
+prioOf p s t = fromMaybe (lowestPriority p + 1) $ lookup s (unP p) >>= lookup t
+
+prop_prioOf_empty = prioOf (P []) "S" "T" == 1
+
+prop_prioOf_singletonFound =
+  prioOf (P [("S", [("Existing topic", 10)])]) "S" "Existing topic" == 10
+
+prop_prioOf_singletonNotFound =
+  prioOf (P [("S", [("Existing topic", 10)])]) "S" "Non-existing topic" == 11
+
+{-|
+The lowest priority assigned by a student to a topic.
+-}
+lowestPriority :: Priorities -> Int
+lowestPriority = fromMaybe 0 . maximumMay . fmap snd . join . fmap snd . unP
+
+type Assignment = [(Student, Maybe Topic)]
 
 data I = I Priorities Assignment
   deriving (Eq, Show)
@@ -107,20 +108,31 @@ instance Pretty I where
   pretty i@(I p a) =
     T.unlines (gene <$> a)
     where
-      gene :: (Student, T) -> Text
+      gene :: (Student, Maybe Topic) -> Text
       gene (s, t) =
         pretty s <> ": " <> pretty t <> prio s t
-      prio :: Student -> T -> Text
-      prio s t = " (" <> show (prioOf p s t) <> ")"
+      prio :: Student -> Maybe Topic -> Text
+      prio s t = " (" <> show (prioOf' p s t) <> ")"
+
+{-|
+The priority value given by a student to a topic including the case of her not
+receiving a topic.
+-}
+prioOf' :: Priorities -> Student -> Maybe Topic -> Int
+prioOf' p s Nothing = lowestPriority p + 2
+prioOf' p s (Just t) = prioOf p s t
 
 instance Individual I where
 
   new (I p _) =
-    sample $ I p . zip (nub $ students p) <$> shuffle (topics p)
+    sample $ I p . zip (nubOrd $ students p) <$> shuffle topics'
+    where
+      topics' = (Just <$> topics p) ++ padding
+      padding = replicate (length (students p) - length (topics p)) Nothing
 
   fitness (I p a) =
     return . negate . sum
-      $ fromIntegral . uncurry (prioOf p) <$> a
+      $ fromIntegral . uncurry (prioOf' p) <$> a
 
   mutate (I p a) = do
     x <- sample $ Uniform 0 (length a - 1)
@@ -132,15 +144,13 @@ instance Individual I where
   does not create an invalid offspring).
   
   TODO Assumes that both individuals are based on the same priorities.
-  
-  TODO Require type-wise that both Assignments are of the same length.
   -}
   crossover1 (I p a1) (I _ a2) = do
     let l = fromIntegral $ min (length a1) (length a2) :: Double
     x <- sample $ Uniform 0 l
     let a1' = zipWith3 (f x) a1 a2 [0 ..]
     let a2' = zipWith3 (f x) a2 a1 [0 ..]
-    if valid a1' && valid a2'
+    if valid p a1' && valid p a2'
       then return . Just $ (I p a1', I p a2')
       else return Nothing
     where
@@ -163,54 +173,58 @@ switch i' j' xs
      in left ++ [(fst ei, snd ej)] ++ middle ++ [(fst ej, snd ei)] ++ right
   | otherwise = xs
 
-prop_switch_keepsValid i j xs = valid xs == valid (switch i j xs)
-
 {-|
 Whether the given assignment is valid (every student occurs at most once, as
-does every topic).
+does every topic; also, there is only no topic given to students if there are
+less topics then students).
+
+Assumes that the priorities are well-formed.
 -}
-valid :: Assignment -> Bool
-valid a = unique students && (unique . filter (/= NoT)) topics
+valid :: Priorities -> Assignment -> Bool
+valid p a =
+  sort (students p) == sort studentsAssigned
+    -- either there are less students than topics …
+    && ( length (students p) < length (topics p)
+           -- … or every existing topic needs to be assigned
+           || sort (topics p) == (sort . catMaybes) topicsAssigned
+       )
   where
-    students = fmap fst a
-    topics = fmap snd a
+    studentsAssigned = fmap fst a
+    topicsAssigned = fmap snd a
 
-{-|
-Whether the given list only contains unique elements.
--}
-unique xs = length xs == (length . nub) xs
+prop_new_valid p = monadicIO $ do
+  I _ a <- lift $ new (I p [])
+  assert $ valid p a
 
-prop_valid_empty = valid []
+prop_mutate_valid p = monadicIO $ do
+  a <- lift . new $ I p []
+  I _ a <- lift $ mutate a
+  assert $ valid p a
 
-prop_valid_dupNoT =
-  forAll noDupsList $ \ss ->
-    valid (ss `zip` repeat NoT)
-
-prop_valid_dupT =
-  forAll noDupsList $ \ss ->
-    forAll noDupsList $ \ts' ->
-      let ts = filter (/= NoT) ts'
-       in length ss > length ts && not (null ts)
-            ==> not . valid
-            $ ss `zip` cycle ts
-
-prop_valid_noDups =
-  forAll noDupsList $ \ss ->
-    forAll noDupsList $ \ts ->
-      valid $ ss `zip` ts
+prop_crossover1_valid p = monadicIO $ do
+  a1 <- lift . new $ I p []
+  a2 <- lift . new $ I p []
+  asM <- lift $ crossover1 a1 a2
+  assert
+    $ case asM of
+      Just (I _ a1', I _ a2') -> valid p a1' && valid p a2'
+      Nothing -> True
 
 {-|
 Generator for lists fulfilling 'unique', that is, only containing unique
 elements.
 -}
-noDupsList :: (Arbitrary a, Eq a) => Gen [a]
-noDupsList = nub <$> arbitrary
+noDupsList :: (Arbitrary a, Eq a, Ord a) => Gen [a]
+noDupsList = nubOrd <$> arbitrary
 
 prop_noDupsList = forAll (noDupsList :: Gen [Int]) unique
 
--- NEXT find out why after x thousand repetitions, sometimes, bad solutions
--- occur with duplicate students
--- probably due to error in 'switch' implementation
+{-|
+Whether the given list only contains unique elements.
+-}
+unique :: (Ord a) => [a] -> Bool
+unique xs = length xs == (length . nubOrd) xs
+
 return []
 
 runTests = $quickCheckAll
