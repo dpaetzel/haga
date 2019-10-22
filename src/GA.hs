@@ -13,6 +13,7 @@ import Control.Arrow hiding (first)
 import qualified Data.List as L
 import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
+import qualified Data.List.NonEmpty.Extra as NE (appendl, sortOn)
 import Data.Random
 import Data.Random.Distribution.Categorical
 import Data.Random.Sample
@@ -22,6 +23,8 @@ import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances
 import Test.QuickCheck.Monadic
+
+-- TODO there should be a few shuffles here
 
 -- TODO enforce this being > 0
 type N = Int
@@ -50,8 +53,9 @@ class Eq i => Individual i where
   Generates a random population of the given size.
   -}
   population :: (MonadRandom m) => N -> i -> m (Population i)
-  population 0 _ = undefined
-  population n i = Pop . NE.fromList <$> replicateM n (new i)
+  population n i
+    | n <= 0 = undefined
+    | otherwise = NE.fromList <$> replicateM n (new i)
 
   mutate :: (MonadRandom m) => i -> m i
 
@@ -81,17 +85,12 @@ possible:
 > data Population a where
 >  Pop :: Individual a => NonEmpty a -> Population a
 -}
-newtype Population a = Pop {unPop :: NonEmpty a}
-  deriving (Foldable, Functor, Semigroup, Show, Traversable)
 
 instance (Arbitrary i) => Arbitrary (Population i) where
   arbitrary = Pop <$> arbitrary
 
-{-|
-The population's size (the length of the internally used non-empty list).
--}
-size :: Population a -> N
-size = NE.length . unPop
+
+type Population i = NonEmpty i
 
 {-|
 Selects one individual from the population using proportionate selection.
@@ -99,7 +98,7 @@ Selects one individual from the population using proportionate selection.
 proportionate1 :: (Individual i, MonadRandom m) => Population i -> m i
 proportionate1 pop =
   sequence ((\i -> (,i) <$> fitness i) <$> pop)
-    >>= sample . fromWeightedList . NE.toList . unPop
+    >>= sample . fromWeightedList . NE.toList
 
 {-|
 Selects @n@ individuals from the population using proportionate selection.
@@ -140,7 +139,6 @@ bestsBy :: (Individual i, Monad m) => N -> (i -> m R) -> Population i -> m [i]
 bestsBy k f =
   fmap (NE.take k . fmap fst . NE.sortBy (comparing (Down . snd)))
     . traverse (\i -> (i,) <$> f i)
-    . unPop
 
 {-|
 The @k@ worst individuals in the population.
@@ -214,6 +212,26 @@ Termination after a number of steps.
 -}
 steps :: N -> Termination i
 steps tEnd _ t = t >= tEnd
+
+-- * Helper functions
+
+{-|
+Shuffles a non-empty list.
+-}
+shuffle' :: (MonadRandom m) => NonEmpty a -> m (NonEmpty a)
+shuffle' xs@(x :| []) = return xs
+shuffle' xs = do
+  i <- sample . uniform 0 $ NE.length xs - 1
+  -- slightly unsafe (!!) used here so deletion is faster
+  let x = xs NE.!! i
+  xs' <- sample . shuffle $ deleteI i xs
+  return $ x :| xs'
+  where
+    deleteI i xs = fst (NE.splitAt i xs) ++ snd (NE.splitAt (i + 1) xs)
+
+prop_shuffle_length xs = monadicIO $ do
+  xs' <- lift $ shuffle' xs
+  assert $ length xs' == length xs
 
 return []
 
