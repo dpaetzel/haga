@@ -9,10 +9,10 @@ let
           #   enableLibraryProfiling = true;
           # });
 
-          ga = haskellPackagesNew.callPackage ./default.nix { };
+          haga = haskellPackagesNew.callPackage ./default.nix { };
         };
       };
     };
   };
   pkgs = import <nixpkgs> { inherit config; };
-in { ga = pkgs.haskellPackages.ga; }
+in { haga = pkgs.haskellPackages.haga; }

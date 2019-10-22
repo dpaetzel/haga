@@ -1,1 +1,1 @@
-(import ./release.nix).ga.env
+(import ./release.nix).haga.env
