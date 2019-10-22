@@ -2,9 +2,9 @@
 
 module Main where
 
+import qualified GA
 import Protolude
 import qualified Seminar
-import qualified GA
 
 main :: IO ()
 main = do

@@ -28,7 +28,7 @@ instance Pretty (Maybe Topic) where
   pretty (Just t) = t
   pretty Nothing = "Kein Thema"
 
-newtype Priorities = P { unP ::  [(Student, [(Topic, Int)])] }
+newtype Priorities = P {unP :: [(Student, [(Topic, Int)])]}
   deriving (Eq, Show)
 
 instance Arbitrary Priorities where
