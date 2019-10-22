@@ -158,8 +158,7 @@ bestsBy k f =
 The @k@ worst individuals in the population.
 -}
 worst :: (Individual i, Monad m) => N -> Population i -> m [i]
--- TODO (1 /) might not be stable regarding floating point precision
-worst = flip bestsBy (fmap (1 /) . fitness)
+worst = flip bestsBy (fmap negate . fitness)
 
 {-|
 The @k@ best individuals in the population.
