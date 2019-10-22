@@ -1,17 +1,23 @@
 cabal-version:       2.2
-name:                ga
+name:                haga
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            Simplistic Genetic Algorithms library
+description:         Haga is a simplistic library for implementing genetic
+                     algorithms in Haskell. While it was originally created to
+                     randomly assign topics to students in seminars while
+                     respecting their priorities, since then, it has become
+                     slightly more general with the outlook of one day being a
+                     fully fledged GA library usable for many different
+                     problems. Haga is also used as a test bed for fun ideas
+                     such as representing improvements in the population's
+                     fitness using MIDI sound.
 license:             GPL-3.0-only
 license-file:        LICENSE
 author:              David Pätzel
-maintainer:          david.paetzel@informatik.uni-augsburg.de
--- copyright:
--- category:
+maintainer:          david.paetzel@posteo.de
+copyright:           Copyright (c): 2019 David Pätzel
+category:            Optimization
 build-type:          Simple
--- extra-source-files:  CHANGELOG.md
-
 
 library
   build-depends:       base ^>=4.12.0.0
@@ -34,7 +40,7 @@ library
                      , SS19
                      , WS19
 
-executable ga
+executable haga
   build-depends:       base ^>=4.12.0.0
                      , extra
                      , MonadRandom
@@ -56,7 +62,7 @@ executable ga
                      , SS19
                      , WS19
 
-executable ga-tests
+executable haga-tests
   build-depends:       base ^>=4.12.0.0
                      , Cabal
                      , extra
