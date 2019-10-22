@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 
 module GA where
@@ -20,19 +21,7 @@ import Pretty
 import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances
-
--- TODO using sample here was a quick hack
-{-|
-Shuffles a non-empty list.
--}
-shuffle' :: (MonadRandom m) => NonEmpty a -> m (NonEmpty a)
-shuffle' xs = do
-  i <- sample . uniform 0 $ NE.length xs - 1
-  let x = xs NE.!! i
-  xs' <- sample . shuffle $ deleteI i xs
-  return $ x :| xs'
-  where
-    deleteI i xs = fst (NE.splitAt (i - 1) xs) ++ snd (NE.splitAt i xs)
+import Test.QuickCheck.Monadic
 
 -- TODO enforce this being > 0
 type N = Int
@@ -99,6 +88,12 @@ instance (Arbitrary i) => Arbitrary (Population i) where
   arbitrary = Pop <$> arbitrary
 
 {-|
+The population's size (the length of the internally used non-empty list).
+-}
+size :: Population a -> N
+size = NE.length . unPop
+
+{-|
 Selects one individual from the population using proportionate selection.
 -}
 proportionate1 :: (Individual i, MonadRandom m) => Population i -> m i
@@ -140,6 +135,7 @@ children2 nX i1 i2 = do
 The @k@ best individuals in the population when comparing using the supplied
 function.
 -}
+-- TODO do this without a complete sort
 bestsBy :: (Individual i, Monad m) => N -> (i -> m R) -> Population i -> m [i]
 bestsBy k f =
   fmap (NE.take k . fmap fst . NE.sortBy (comparing (Down . snd)))
@@ -218,3 +214,7 @@ Termination after a number of steps.
 -}
 steps :: N -> Termination i
 steps tEnd _ t = t >= tEnd
+
+return []
+
+runTests = $quickCheckAll
