@@ -78,17 +78,18 @@ class Eq i => Individual i where
       isM <- crossover1 i1 i2
       maybe (return Nothing) (uncurry (crossover (n - 1))) isM
 
--- TODO Perhaps use Data.Vector.Sized for the population?
 {-|
-It would be nice to model populations as GADTs but then no functor instance were
-possible:
-> data Population a where
->  Pop :: Individual a => NonEmpty a -> Population a
+Needed for QuickCheck tests, very simplistic implementation.
 -}
+instance Individual Integer where
 
-instance (Arbitrary i) => Arbitrary (Population i) where
-  arbitrary = Pop <$> arbitrary
+  new _ = sample $ uniform 0 (0 + 100000)
 
+  mutate i = sample $ uniform (i - 10) (i + 10)
+
+  crossover1 i1 i2 = return $ Just (i1 - i2, i2 - i1)
+
+  fitness = return . fromIntegral . negate
 
 type Population i = NonEmpty i
 
@@ -129,74 +130,107 @@ children2 nX i1 i2 = do
   i6 <- mutate i4
   return $ i5 :| [i6]
 
--- TODO there should be some shuffle here
+{-|
+The best according to a function, return up to @k@ results and the remaining
+population.
+
+If @k <= 0@, this returns the best one anyway (as if @k == 1@).
+-}
+bestsBy
+  :: (Individual i, Monad m)
+  => N
+  -> (i -> m R)
+  -> Population i
+  -> m (NonEmpty i, [i])
+bestsBy k f pop@(i :| pop')
+  | k <= 0 = bestsBy 1 f pop
+  | otherwise = foldM run (i :| [], []) pop'
+  where
+    run (bests, rest) i =
+      ((NE.fromList . NE.take k) &&& (rest <>) . NE.drop k)
+        <$> sorted (i <| bests)
+    sorted =
+      fmap (fmap fst . NE.sortOn (Down . snd)) . traverse (\i -> (i,) <$> f i)
+
 {-|
 The @k@ best individuals in the population when comparing using the supplied
 function.
 -}
--- TODO do this without a complete sort
-bestsBy :: (Individual i, Monad m) => N -> (i -> m R) -> Population i -> m [i]
-bestsBy k f =
+bestsBy' :: (Individual i, Monad m) => N -> (i -> m R) -> Population i -> m [i]
+bestsBy' k f =
   fmap (NE.take k . fmap fst . NE.sortBy (comparing (Down . snd)))
     . traverse (\i -> (i,) <$> f i)
+
+prop_bestsBy_isBestsBy' k pop =
+  k > 0
+    ==> monadicIO
+    $ do
+      a <- fst <$> bestsBy k fitness pop
+      b <- bestsBy' k fitness pop
+      assert $ NE.toList a == b
 
 {-|
 The @k@ worst individuals in the population.
 -}
-worst :: (Individual i, Monad m) => N -> Population i -> m [i]
+worst :: (Individual i, Monad m) => N -> Population i -> m (NonEmpty i, [i])
 worst = flip bestsBy (fmap negate . fitness)
 
 {-|
 The @k@ best individuals in the population.
 -}
-bests :: (Individual i, Monad m) => N -> Population i -> m [i]
+bests :: (Individual i, Monad m) => N -> Population i -> m (NonEmpty i, [i])
 bests = flip bestsBy fitness
 
--- TODO add top x percent selection (select n guys, sort by fitness first)
-
+-- TODO add top x percent parent selection (select n guys, sort by fitness first)
 step
   :: (Individual i, MonadRandom m, Monad m)
-  => N
-  -> N
+  => N -- ^ number of parents @nParents@ for creating @nParents@ children
+  -> N -- ^ how many crossover points (the @nX@ in @nX@-point crossover)
+  -> R -- ^ elitism ratio @pElite@
   -> Population i
   -> m (Population i)
-step nParents nX pop = do
-  iBests <- bests 1 pop
-  is <- proportionate nParents pop
-  i :| is' <- children nX is
-  iWorsts <- worst nParents pop
-  let popClean = foldr L.delete (NE.toList . unPop $ pop) $ iBests <> iWorsts
-  -- TODO why does this not work? (we should use it!)
-  -- Pop <$> (shuffle' . NE.nub $ i :| is' <> popClean <> iBests)
-  return . Pop . NE.nub $ i :| is' <> popClean <> iBests
+-- TODO parametrize selection: 'proportionate' and 'worst'
+step nParents nX pElite pop = do
+  iParents <- proportionate nParents pop
+  iChildren <- NE.filter (`notElem` pop) <$> children nX iParents
+  let pop' = pop `NE.appendl` iChildren
+  (iBests, iRests) <- bests bestN pop'
+  case iRests of
+    [] -> return iBests
+    (i : iRests') -> do
+      (_, iRests') <-
+        worst (length iBests + length iRests - length pop) (i :| iRests')
+      return $ iBests `NE.appendl` iRests'
+  where
+    bestN = round . (pElite *) . fromIntegral $ NE.length pop
+
+-- TODO prop_step_size =
 
 {-|
-Runs the GA, using in each iteration
- - @nParents@ parents for creating @nParents@ children and
- - @nX@-point crossover.
+Given an initial population, runs the GA until the termination criterion is
+fulfilled.
 
-It terminates after the termination criterion is fulfilled.
+Uses the pipes library to, in each step, 'Pipes.yield' the currently best known
+solution.
 -}
 run
   :: (Individual i, Monad m, MonadRandom m)
-  => N
-  -> N
+  => N -- ^ number of parents @nParents@ for creating @nParents@ children
+  -> N -- ^ how many crossover points (the @nX@ in @nX@-point crossover)
+  -> R -- ^ elitism ratio @pElite@
   -> Population i
   -> Termination i
-  -> Producer (Int, Maybe R) m (Population i)
-run nParents nX pop term = step' 0 pop
+  -> Producer (Int, R) m (Population i)
+run nParents nX pElite pop term = step' 0 pop
   where
     step' t pop
       | term pop t = return pop
       | otherwise = do
-        pop' <- lift $ step nParents nX pop
-        iBests <- lift $ bests 1 pop'
-        case headMay iBests of
-          Just iBest -> do
-            f <- fitness iBest
-            yield (t, Just f)
-          Nothing ->
-            yield (t, Nothing)
+        pop' <- lift $ step nParents nX pElite pop
+        (iBests, _) <- lift $ bests 1 pop'
+        fs <- lift . sequence $ fitness <$> iBests
+        let fBest = NE.head fs
+        yield (t, fBest)
         step' (t + 1) pop'
 
 -- * Termination criteria
