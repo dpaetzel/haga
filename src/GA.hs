@@ -166,20 +166,6 @@ The @k@ best individuals in the population.
 bests :: (Individual i, Monad m) => N -> Population i -> m [i]
 bests = flip bestsBy fitness
 
-{-|
-Runs the GA and prints the @nResult@ best individuals.
--}
-ga' nParents nX pop term nResult = do
-  pop <- run nParents nX pop term
-  res <- bests nResult pop
-  sequence $ format <$> res
-  where
-    -- TODO this has to be done nicer
-    format :: (Individual i, MonadIO m, Pretty i) => i -> m ()
-    format s = do
-      f <- liftIO $ fitness s
-      putText $ show f <> "\n" <> pretty s
-
 -- TODO add top x percent selection (select n guys, sort by fitness first)
 
 step
