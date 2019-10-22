@@ -8,11 +8,6 @@
 
 module GA where
 
--- MAYBE add factory floor optimizer:
--- [2019-07-15] GA that optimizes factory floor
---   - data: graph of workstations with edge weights being the number of walks between them
---   - desired: optimal configuration that reduces crossings
---   - space: 15 workstations that can be positioned in a 20 x 20 space
 import Control.Arrow hiding (first)
 import qualified Data.List as L
 import Data.List.NonEmpty ((<|))
@@ -39,12 +34,12 @@ shuffle' xs = do
   where
     deleteI i xs = fst (NE.splitAt (i - 1) xs) ++ snd (NE.splitAt i xs)
 
--- TODO Enforce this being > 0
+-- TODO enforce this being > 0
 type N = Int
 
 type R = Double
 
--- alternative could be
+-- TODO an alternative could be
 -- data I a
 --   = I
 --       { mutate :: m (I a),
@@ -111,12 +106,9 @@ proportionate1 pop =
   sequence ((\i -> (,i) <$> fitness i) <$> pop)
     >>= sample . fromWeightedList . NE.toList . unPop
 
--- TODO Perhaps use stochastic acceptance for performance?
-
 {-|
 Selects @n@ individuals from the population using proportionate selection.
 -}
--- TODO Perhaps use Data.Vector.Sized for the result?
 proportionate
   :: (Individual i, MonadRandom m)
   => N
