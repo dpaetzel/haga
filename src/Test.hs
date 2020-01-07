@@ -8,6 +8,6 @@ import qualified Seminar
 
 main :: IO ()
 main = do
-  _ <- Seminar.runTests
   _ <- GA.runTests
+  _ <- Seminar.runTests
   return ()

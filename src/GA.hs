@@ -183,6 +183,12 @@ prop_bestsBy_isBestsBy' k pop =
       b <- bestsBy' k fitness pop
       assert $ NE.toList a == b
 
+prop_bestsBy_lengths k pop =
+  k > 0 ==> monadicIO $ do
+    (bests, rest) <- bestsBy k fitness pop
+    assert
+      $ length bests == min k (length pop) && length bests + length rest == length pop
+
 {-|
 The @k@ worst individuals in the population.
 -}
