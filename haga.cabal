@@ -24,6 +24,7 @@ library
                      , extra
                      , MonadRandom
                      , monad-loops
+                     , optparse-applicative
                      , pipes
                      , protolude
                      , QuickCheck
@@ -44,6 +45,7 @@ executable haga
                      , extra
                      , MonadRandom
                      , monad-loops
+                     , optparse-applicative
                      , pipes
                      , protolude
                      , QuickCheck
@@ -66,6 +68,7 @@ executable haga-tests
                      , extra
                      , MonadRandom
                      , monad-loops
+                     , optparse-applicative
                      , pipes
                      , protolude
                      , QuickCheck

@@ -2,21 +2,49 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+import Options.Applicative
 import Pipes
 import Pretty
-import Protolude hiding (for)
+import Protolude hiding (for, option)
 import System.IO
 import Szenario191
 
-mkPop = population 100 (I prios [])
+data Options
+  = Options
+      { iterations :: N,
+        populationSize :: N
+      }
+
+options :: Parser Options
+options =
+  Options
+    <$> option auto
+          ( long "iterations"
+              <> short 'i'
+              <> metavar "N"
+              <> value 1000
+              <> help "Number of iterations"
+          )
+    <*> option auto
+          ( long "population-size"
+              <> short 'p'
+              <> metavar "N"
+              <> value 100
+              <> help "Population size"
+          )
+
+optionsWithHelp =
+  info (helper <*> options)
+    ( fullDesc
+        <> progDesc "Run a GA"
+        <> header "haga - Haskell implementations of EAs"
+    )
 
 main :: IO ()
-main = do
-  args <- getArgs
-  let t = fromMaybe 100 $ headMay args >>= readMaybe
+main = execParser optionsWithHelp >>= \opts -> do
   hSetBuffering stdout NoBuffering
-  pop <- mkPop
-  pop' <- runEffect $ for (run 2 1 (5 / 100) pop (steps t)) log
+  pop <- population (populationSize opts) (I prios [])
+  pop' <- runEffect $ for (run 2 1 (5 / 100) pop (steps $ iterations opts)) log
   (res, _) <- bests 5 pop'
   sequence_ $ format <$> res
   where
