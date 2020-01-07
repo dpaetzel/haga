@@ -6,7 +6,7 @@ import Pipes
 import Pretty
 import Protolude hiding (for)
 import System.IO
-import WS19
+import Szenario191
 
 mkPop = population 100 (I prios [])
 

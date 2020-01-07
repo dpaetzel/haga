@@ -37,8 +37,7 @@ library
   exposed-modules:     GA
                      , Seminar
                      , Pretty
-                     , SS19
-                     , WS19
+                     , Szenario191
 
 executable haga
   build-depends:       base ^>=4.12.0.0
@@ -59,8 +58,7 @@ executable haga
   other-modules:       GA
                      , Seminar
                      , Pretty
-                     , SS19
-                     , WS19
+                     , Szenario191
 
 executable haga-tests
   build-depends:       base ^>=4.12.0.0
@@ -82,5 +80,4 @@ executable haga-tests
   other-modules:       GA
                      , Seminar
                      , Pretty
-                     , SS19
-                     , WS19
+                     , Szenario191
