@@ -2,4 +2,16 @@
 #! nix-shell -i fish -p fish feedgnuplot
 
 
-dist-newstyle/build/x86_64-linux/ghc-8.6.5/ga-0.1.0.0/x/ga/build/ga/ga $argv | feedgnuplot --terminal "x11 background '#ffffff'" --domain --stream --lines --xmax 12000 --xmin 0 --xlabel "step" --ylabel "cost" --extracmd "set style line 5 lt rgb 'red' lw 2 pt 6" --style 0 "ls 5"
+dist-newstyle/build/x86_64-linux/ghc-8.8.3/haga-0.1.0.0/x/haga/build/haga/haga $argv | \
+    # dist-newstyle/build/x86_64-linux/ghc-8.6.5/ga-0.1.0.0/x/ga/build/ga/ga $argv | \
+    feedgnuplot \
+    --terminal "x11 background '#ffffff'" \
+    --domain \
+    --stream \
+    --lines \
+    --xmax 12000 \
+    --xmin 0 \
+    --xlabel "step" \
+    --ylabel "cost" \
+    --extracmd "set style line 5 lt rgb 'red' lw 2 pt 6" \
+    --style 0 "ls 5"
