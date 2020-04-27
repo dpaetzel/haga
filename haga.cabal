@@ -20,7 +20,7 @@ category:            Optimization
 build-type:          Simple
 
 library
-  build-depends:       base ^>=4.12.0.0
+  build-depends:       base ^>=4.13.0.0
                      , extra
                      , MonadRandom
                      , monad-loops
@@ -41,7 +41,7 @@ library
                      , Szenario191
 
 executable haga
-  build-depends:       base ^>=4.12.0.0
+  build-depends:       base ^>=4.13.0.0
                      , extra
                      , MonadRandom
                      , monad-loops
@@ -63,7 +63,7 @@ executable haga
                      , Szenario191
 
 executable haga-tests
-  build-depends:       base ^>=4.12.0.0
+  build-depends:       base ^>=4.13.0.0
                      , Cabal
                      , extra
                      , MonadRandom
