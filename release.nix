@@ -14,5 +14,6 @@ let
       };
     };
   };
-  pkgs = import <nixpkgs> { inherit config; };
+  # pkgs = import <nixpkgs> { inherit config; };
+  pkgs = import /home/david/Code/nixpkgs/default.nix { inherit config; };
 in { haga = pkgs.haskellPackages.haga; }

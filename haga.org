@@ -1,2 +1,22 @@
 * PROJECT haga
 ** TODO see TODOs in code
+** MAYBE Add factory floor optimizer
+   GA that optimizes factory floor
+   - data: graph of workstations with edge weights being the number of walks
+     between them
+   - desired: optimal configuration that reduces crossings
+   - space: 15 workstations that can be positioned in a 20 x 20 space
+* Unsorted ideas
+  - https://github.com/mikeizbicki/HerbiePlugin
+  - https://github.com/mikeizbicki/subhask
+  - hlearn
+* MAYBE Add seminar stats
+  - Which topic was chosen how often, how are the priorities distributed etc.
+    #+BEGIN_SRC haskell
+    fmap (\xs@(x : _) -> (fst x, fmap snd xs))
+      $ groupOn fst
+      $ sortOn fst
+      $ filter ((100 /=) . snd)
+      $ mconcat
+      $ snd <$> unP prios
+    #+END_SRC
