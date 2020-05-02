@@ -34,6 +34,7 @@ library
                      , random-shuffle
                      , text
   default-language:    Haskell2010
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans
   hs-source-dirs:      src
   exposed-modules:     GA
                      , Seminar
@@ -55,6 +56,7 @@ executable haga
                      , random-shuffle
                      , text
   default-language:    Haskell2010
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans
   hs-source-dirs:      src
   main-is:             Main.hs
   other-modules:       GA
@@ -62,7 +64,7 @@ executable haga
                      , Pretty
                      , Szenario191
 
-executable haga-tests
+executable haga-test
   build-depends:       base ^>=4.13.0.0
                      , Cabal
                      , extra
@@ -78,6 +80,7 @@ executable haga-tests
                      , random-shuffle
                      , text
   default-language:    Haskell2010
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans
   hs-source-dirs:      src
   main-is:             Test.hs
   other-modules:       GA

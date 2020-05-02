@@ -24,18 +24,14 @@ function.
 module GA where
 
 import Control.Arrow hiding (first, second)
-import qualified Data.List as L
 import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty.Extra as NE (appendl, sortOn)
 import Data.Random
-import Data.Random.Distribution.Categorical
-import Data.Random.Sample
 import Pipes
-import Pretty
 import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
-import Test.QuickCheck.Instances
+import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Monadic
 
 -- TODO there should be a few 'shuffle's here
@@ -122,6 +118,8 @@ children nX (i1 :| [i2]) = children2 nX i1 i2
 children nX (i1 :| i2 : is') =
   (<>) <$> children2 nX i1 i2 <*> children nX (NE.fromList is')
 
+prop_children_asManyAsParents
+  :: (Individual a, Show a) => N -> NonEmpty a -> Property
 prop_children_asManyAsParents nX is =
   again
     $ monadicIO
@@ -168,6 +166,7 @@ bestsBy' k f =
   fmap (NE.take k . fmap fst . NE.sortBy (comparing (Down . snd)))
     . traverse (\i -> (i,) <$> f i)
 
+prop_bestsBy_isBestsBy' :: Individual a => Int -> Population a -> Property
 prop_bestsBy_isBestsBy' k pop =
   k > 0
     ==> monadicIO
@@ -176,6 +175,7 @@ prop_bestsBy_isBestsBy' k pop =
       b <- bestsBy' k fitness pop
       assert $ NE.toList a == b
 
+prop_bestsBy_lengths :: Individual a => Int -> Population a -> Property
 prop_bestsBy_lengths k pop =
   k > 0 ==> monadicIO $ do
     (bests, rest) <- bestsBy k fitness pop
@@ -230,6 +230,8 @@ stepSteady select nParents nX pElite pop = do
   where
     nBest = floor . (pElite *) . fromIntegral $ NE.length pop
 
+prop_stepSteady_constantPopSize
+  :: (Individual a, Show a) => NonEmpty a -> Property
 prop_stepSteady_constantPopSize pop =
   forAll
     ( (,)
@@ -300,6 +302,7 @@ selected multiple times, see 'chain').
 tournament :: (Individual i, MonadRandom m) => N -> Selection m i
 tournament nTrnmnt = chain (tournament1 nTrnmnt)
 
+prop_tournament_selectsN :: Individual a => Int -> Int -> NonEmpty a -> Property
 prop_tournament_selectsN nTrnmnt n pop =
   0 < nTrnmnt && nTrnmnt < length pop
     && 0 < n ==> monadicIO
@@ -322,7 +325,6 @@ tournament1 nTrnmnt pop
   | otherwise = trnmnt >>= fmap (NE.head . fst) . bests 1
   where
     trnmnt = withoutReplacement nTrnmnt pop
-    size = length pop
 
 {-|
 Selects @n@ individuals uniformly at random from the population (without
@@ -340,6 +342,7 @@ withoutReplacement n pop
   | otherwise =
     fmap NE.fromList . sample . shuffleNofM n (length pop) $ NE.toList pop
 
+prop_withoutReplacement_selectsN :: Int -> NonEmpty a -> Property
 prop_withoutReplacement_selectsN n pop =
   0 < n && n <= length pop ==> monadicIO $ do
     pop' <- lift $ withoutReplacement n pop
@@ -365,7 +368,7 @@ steps tEnd _ t = t >= tEnd
 Shuffles a non-empty list.
 -}
 shuffle' :: (MonadRandom m) => NonEmpty a -> m (NonEmpty a)
-shuffle' xs@(x :| []) = return xs
+shuffle' xs@(_ :| []) = return xs
 shuffle' xs = do
   i <- sample . uniform 0 $ NE.length xs - 1
   -- slightly unsafe (!!) used here so deletion is faster
@@ -375,10 +378,12 @@ shuffle' xs = do
   where
     deleteI i xs = fst (NE.splitAt i xs) ++ snd (NE.splitAt (i + 1) xs)
 
+prop_shuffle_length :: NonEmpty a -> Property
 prop_shuffle_length xs = monadicIO $ do
   xs' <- lift $ shuffle' xs
   assert $ length xs' == length xs
 
 return []
 
+runTests :: IO Bool
 runTests = $quickCheckAll

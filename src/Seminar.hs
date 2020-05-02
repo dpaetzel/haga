@@ -8,13 +8,11 @@ module Seminar where
 import Data.List ((!!), (\\), lookup, zipWith3)
 import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.Random
-import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
 import GA
 import Pretty
 import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
-import Test.QuickCheck.Instances
 import Test.QuickCheck.Monadic (assert, monadicIO)
 
 instance Pretty Text where
@@ -85,11 +83,14 @@ The priority value given by a student to a topic.
 prioOf :: Priorities -> Student -> Topic -> Int
 prioOf p s t = fromMaybe (lowestPriority p + 1) $ lookup s (unP p) >>= lookup t
 
+prop_prioOf_empty :: Bool
 prop_prioOf_empty = prioOf (P []) "S" "T" == 1
 
+prop_prioOf_singletonFound :: Bool
 prop_prioOf_singletonFound =
   prioOf (P [("S", [("Existing topic", 10)])]) "S" "Existing topic" == 10
 
+prop_prioOf_singletonNotFound :: Bool
 prop_prioOf_singletonNotFound =
   prioOf (P [("S", [("Existing topic", 10)])]) "S" "Non-existing topic" == 11
 
@@ -105,7 +106,7 @@ data I = I Priorities Assignment
   deriving (Eq, Show)
 
 instance Pretty I where
-  pretty i@(I p a) =
+  pretty (I p a) =
     T.unlines (gene <$> a)
     where
       gene :: (Student, Maybe Topic) -> Text
@@ -119,7 +120,7 @@ The priority value given by a student to a topic including the case of her not
 receiving a topic.
 -}
 prioOf' :: Priorities -> Student -> Maybe Topic -> Int
-prioOf' p s Nothing = lowestPriority p + 2
+prioOf' p _ Nothing = lowestPriority p + 2
 prioOf' p s (Just t) = prioOf p s t
 
 instance Individual I where
@@ -192,15 +193,18 @@ valid p a =
     studentsAssigned = fmap fst a
     topicsAssigned = fmap snd a
 
+prop_new_valid :: Priorities -> Property
 prop_new_valid p = monadicIO $ do
   I _ a <- lift $ new (I p [])
   assert $ valid p a
 
+prop_mutate_valid :: Priorities -> Property
 prop_mutate_valid p = monadicIO $ do
   a <- lift . new $ I p []
   I _ a <- lift $ mutate a
   assert $ valid p a
 
+prop_crossover1_valid :: Priorities -> Property
 prop_crossover1_valid p = monadicIO $ do
   a1 <- lift . new $ I p []
   a2 <- lift . new $ I p []
@@ -217,6 +221,7 @@ elements.
 noDupsList :: (Arbitrary a, Eq a, Ord a) => Gen [a]
 noDupsList = nubOrd <$> arbitrary
 
+prop_noDupsList :: Property
 prop_noDupsList = forAll (noDupsList :: Gen [Int]) unique
 
 {-|
@@ -227,4 +232,5 @@ unique xs = length xs == (length . nubOrd) xs
 
 return []
 
+runTests :: IO Bool
 runTests = $quickCheckAll

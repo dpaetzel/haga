@@ -9,7 +9,6 @@ module Szenario191
 where
 
 import GA hiding (runTests)
-import Protolude
 import Seminar hiding (runTests)
 
 prios :: Priorities
