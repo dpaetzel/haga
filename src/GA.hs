@@ -23,7 +23,7 @@ function.
 -}
 module GA where
 
-import Control.Arrow hiding (first)
+import Control.Arrow hiding (first, second)
 import qualified Data.List as L
 import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
@@ -68,6 +68,12 @@ class Eq i => Individual i where
 
   crossover1 :: (MonadRandom m) => i -> i -> m (Maybe (i, i))
 
+  {-|
+  An individual's fitness. Higher values are considered “better”.
+  
+  We explicitely allow fitness values to be have any sign (see, for example,
+  'proportionate1').
+  -}
   fitness :: (Monad m) => i -> m R
 
   {-|
@@ -135,6 +141,13 @@ children _ (i :| []) = (:| []) <$> mutate i
 children nX (i1 :| [i2]) = children2 nX i1 i2
 children nX (i1 :| i2 : is') =
   (<>) <$> children2 nX i1 i2 <*> children nX (NE.fromList is')
+
+prop_children_asManyAsParents nX is =
+  again
+    $ monadicIO
+    $ do
+      is' <- lift $ children nX is
+      return $ counterexample (show is') $ length is' == length is
 
 children2 :: (Individual i, MonadRandom m) => N -> i -> i -> m (NonEmpty i)
 children2 nX i1 i2 = do
@@ -217,17 +230,30 @@ step nParents nX pElite pop = do
   iParents <- proportionate nParents pop
   iChildren <- NE.filter (`notElem` pop) <$> children nX iParents
   let pop' = pop `NE.appendl` iChildren
-  (iBests, iRests) <- bests bestN pop'
-  case iRests of
-    [] -> return iBests
-    (i : iRests') -> do
-      (_, iRests') <-
-        worst (length iBests + length iRests - length pop) (i :| iRests')
-      return $ iBests `NE.appendl` iRests'
+  (elitists, rest) <- bests nBest pop'
+  case rest of
+    [] -> return elitists
+    (i : is) ->
+      -- NOTE 'bests' always returns at least one individual, thus we need this
+      -- slightly ugly branching
+      if length elitists == length pop
+        then return elitists
+        else
+          (elitists <>)
+            . fst <$> bests (length pop - length elitists) (i :| is)
   where
-    bestN = round . (pElite *) . fromIntegral $ NE.length pop
+    nBest = floor . (pElite *) . fromIntegral $ NE.length pop
 
--- TODO prop_step_size =
+prop_stepSteady_constantPopSize pop =
+  forAll
+    ( (,)
+        <$> choose (1, length pop)
+        <*> choose (1, length pop)
+    )
+    $ \(nParents, nX) -> monadicIO $ do
+      let pElite = 0.1
+      pop' <- lift $ stepSteady (tournament 4) nParents nX pElite pop
+      return . counterexample (show pop') $ length pop' == length pop
 
 {-|
 Given an initial population, runs the GA until the termination criterion is
