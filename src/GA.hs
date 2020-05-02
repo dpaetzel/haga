@@ -138,7 +138,7 @@ children2 nX i1 i2 = do
   return $ i5 :| [i6]
 
 {-|
-The best according to a function, return up to @k@ results and the remaining
+The best according to a function; returns up to @k@ results and the remaining
 population.
 
 If @k <= 0@, this returns the best one anyway (as if @k == 1@).
@@ -183,13 +183,13 @@ prop_bestsBy_lengths k pop =
       $ length bests == min k (length pop) && length bests + length rest == length pop
 
 {-|
-The @k@ worst individuals in the population.
+The @k@ worst individuals in the population (and the rest of the population).
 -}
 worst :: (Individual i, Monad m) => N -> Population i -> m (NonEmpty i, [i])
 worst = flip bestsBy (fmap negate . fitness)
 
 {-|
-The @k@ best individuals in the population.
+The @k@ best individuals in the population (and the rest of the population).
 -}
 bests :: (Individual i, Monad m) => N -> Population i -> m (NonEmpty i, [i])
 bests = flip bestsBy fitness
