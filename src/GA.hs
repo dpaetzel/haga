@@ -110,26 +110,6 @@ Populations are just basic non-empty lists.
 type Population i = NonEmpty i
 
 {-|
-Selects one individual from the population using proportionate selection.
--}
-proportionate1 :: (Individual i, MonadRandom m) => Population i -> m i
-proportionate1 pop =
-  sequence ((\i -> (,i) <$> fitness i) <$> pop)
-    >>= sample . fromWeightedList . NE.toList
-
-{-|
-Selects @n@ individuals from the population using proportionate selection.
--}
-proportionate
-  :: (Individual i, MonadRandom m)
-  => N
-  -> Population i
-  -> m (NonEmpty i)
-proportionate n pop
-  | n > 1 = (<|) <$> proportionate1 pop <*> proportionate (n - 1) pop
-  | otherwise = (:|) <$> proportionate1 pop <*> return []
-
-{-|
 Produces offspring circularly from the given list of parents.
 -}
 children
@@ -216,18 +196,24 @@ bests = flip bestsBy fitness
 
 -- TODO add top x percent parent selection (select n guys, sort by fitness first)
 {-|
-Performs one iteration of the genetic algorithm.
+Performs one iteration of a steady state genetic algorithm that in each
+iteration that creates @k@ offspring simply deletes the worst @k@ individuals
+while making sure that the given percentage of elitists survive (at least 1
+elitist, even if the percentage is 0 or low enough for rounding to result in 0
+elitists).
 -}
-step
+stepSteady
   :: (Individual i, MonadRandom m, Monad m)
-  => N -- ^ number of parents @nParents@ for creating @nParents@ children
-  -> N -- ^ how many crossover points (the @nX@ in @nX@-point crossover)
-  -> R -- ^ elitism ratio @pElite@
+  => Selection m i -- ^ Mechanism for selecting parents
+  -> N -- ^ Number of parents @nParents@ for creating @nParents@ children
+  -> N -- ^ How many crossover points (the @nX@ in @nX@-point crossover)
+  -> R -- ^ Elitism ratio @pElite@
   -> Population i
   -> m (Population i)
--- TODO parametrize selection: 'proportionate' and 'worst'
-step nParents nX pElite pop = do
-  iParents <- proportionate nParents pop
+stepSteady select nParents nX pElite pop = do
+  -- TODO Consider keeping the fitness evaluations already done for pop (so we
+  -- only reevaluate iChildren)
+  iParents <- select nParents pop
   iChildren <- NE.filter (`notElem` pop) <$> children nX iParents
   let pop' = pop `NE.appendl` iChildren
   (elitists, rest) <- bests nBest pop'
@@ -264,23 +250,100 @@ solution.
 -}
 run
   :: (Individual i, Monad m, MonadRandom m)
-  => N -- ^ number of parents @nParents@ for creating @nParents@ children
-  -> N -- ^ how many crossover points (the @nX@ in @nX@-point crossover)
-  -> R -- ^ elitism ratio @pElite@
+  => Selection m i -- ^ Mechanism for selecting parents
+  -> N -- ^ Number of parents @nParents@ for creating @nParents@ children
+  -> N -- ^ How many crossover points (the @nX@ in @nX@-point crossover)
+  -> R -- ^ Elitism ratio @pElite@
   -> Population i
   -> Termination i
   -> Producer (Int, R) m (Population i)
-run nParents nX pElite pop term = step' 0 pop
+run select nParents nX pElite pop term = step' 0 pop
   where
     step' t pop
       | term pop t = return pop
       | otherwise = do
-        pop' <- lift $ step nParents nX pElite pop
+        pop' <- lift $ stepSteady select nParents nX pElite pop
         (iBests, _) <- lift $ bests 1 pop'
         fs <- lift . sequence $ fitness <$> iBests
         let fBest = NE.head fs
         yield (t, fBest)
         step' (t + 1) pop'
+
+-- * Selection mechanisms
+
+{-|
+A function generating a monadic action which selects a given number of
+individuals from the given population.
+-}
+type Selection m i = N -> Population i -> m (NonEmpty i)
+
+{-|
+Selects @n@ individuals from the population the given mechanism by repeatedly
+selecting a single individual using the given selection mechanism (with
+replacement, so the same individual can be selected multiple times).
+-}
+chain
+  :: (Individual i, MonadRandom m)
+  => (Population i -> m i)
+  -> Selection m i
+-- TODO Ensure that the same individual is not selected multiple times
+-- (require Selections to partition)
+chain select1 n pop
+  | n > 1 = (<|) <$> select1 pop <*> chain select1 (n - 1) pop
+  | otherwise = (:|) <$> select1 pop <*> return []
+
+{-|
+Selects @n@ individuals from the population by repeatedly selecting a single
+indidual using a tournament of the given size (the same individual can be
+selected multiple times, see 'chain').
+-}
+tournament :: (Individual i, MonadRandom m) => N -> Selection m i
+tournament nTrnmnt = chain (tournament1 nTrnmnt)
+
+prop_tournament_selectsN nTrnmnt n pop =
+  0 < nTrnmnt && nTrnmnt < length pop
+    && 0 < n ==> monadicIO
+    $ do
+      pop' <- lift $ tournament 2 n pop
+      assert $ length pop' == n
+
+{-|
+Selects one individual from the population using tournament selection.
+-}
+tournament1
+  :: (Individual i, MonadRandom m)
+  => N
+  -- ^ Tournament size
+  -> Population i
+  -> m i
+tournament1 nTrnmnt pop
+  -- TODO Use Positive for this constraint
+  | nTrnmnt <= 0 = undefined
+  | otherwise = trnmnt >>= fmap (NE.head . fst) . bests 1
+  where
+    trnmnt = withoutReplacement nTrnmnt pop
+    size = length pop
+
+{-|
+Selects @n@ individuals uniformly at random from the population (without
+replacement, so if @n >= length pop@, simply returns @pop@).
+-}
+withoutReplacement
+  :: (MonadRandom m)
+  => N
+  -- ^ How many individuals to select
+  -> Population i
+  -> m (NonEmpty i)
+withoutReplacement 0 _ = undefined
+withoutReplacement n pop
+  | n >= length pop = return pop
+  | otherwise =
+    fmap NE.fromList . sample . shuffleNofM n (length pop) $ NE.toList pop
+
+prop_withoutReplacement_selectsN n pop =
+  0 < n && n <= length pop ==> monadicIO $ do
+    pop' <- lift $ withoutReplacement n pop
+    assert $ length pop' == n
 
 -- * Termination criteria
 
