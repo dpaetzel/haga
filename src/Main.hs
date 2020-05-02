@@ -33,6 +33,7 @@ options =
               <> help "Population size"
           )
 
+optionsWithHelp :: ParserInfo Options
 optionsWithHelp =
   info (helper <*> options)
     ( fullDesc
@@ -44,7 +45,9 @@ main :: IO ()
 main = execParser optionsWithHelp >>= \opts -> do
   hSetBuffering stdout NoBuffering
   pop <- population (populationSize opts) (I prios [])
-  pop' <- runEffect $ for (run 2 1 (5 / 100) pop (steps $ iterations opts)) log
+  pop' <-
+    runEffect
+      $ for (run (tournament 2) 2 1 (5 / 100) pop (steps $ iterations opts)) log
   (res, _) <- bests 5 pop'
   sequence_ $ format <$> res
   where
