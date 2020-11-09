@@ -14,6 +14,9 @@ let
       };
     };
   };
-  # pkgs = import <nixpkgs> { inherit config; };
-  pkgs = import /home/david/Code/nixpkgs/default.nix { inherit config; };
+  pkgs = import (builtins.fetchGit {
+    name = "nixpkgs-2020-05-13";
+    url = "https://github.com/NixOS/nixpkgs/";
+    rev = "a29c7741a3257f9e27daf126e18f472102eaa14b";
+  }) { inherit config; };
 in { haga = pkgs.haskellPackages.haga; }

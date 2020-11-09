@@ -15,7 +15,7 @@ license:             GPL-3.0-only
 license-file:        LICENSE
 author:              David Pätzel
 maintainer:          david.paetzel@posteo.de
-copyright:           Copyright (c): 2019 David Pätzel
+copyright:           Copyright (c): 2020 David Pätzel
 category:            Optimization
 build-type:          Simple
 
