@@ -6,7 +6,7 @@
 module Seminar where
 
 import Data.List ((!!), (\\), lookup, zipWith3)
-import Data.List.Extra (nubOrd, nubOrdOn)
+import Data.List.Extra (delete, nubOrd, nubOrdOn)
 import Data.Random
 import qualified Data.Text as T
 import GA
@@ -177,18 +177,16 @@ switch i' j' xs
 {-|
 Whether the given assignment is valid (every student occurs at most once, as
 does every topic; also, there is only no topic given to students if there are
-less topics then students).
+less topics than students).
 
 Assumes that the priorities are well-formed.
 -}
 valid :: Priorities -> Assignment -> Bool
 valid p a =
+  -- all students must be part of the solution
   sort (students p) == sort studentsAssigned
-    -- either there are less students than topics …
-    && ( length (students p) < length (topics p)
-           -- … or every existing topic needs to be assigned
-           || sort (topics p) == (sort . catMaybes) topicsAssigned
-       )
+    -- each actual topic (i.e. not “no topic”) is assigned at most once
+    && nubOrd (delete Nothing topicsAssigned) == delete Nothing topicsAssigned
   where
     studentsAssigned = fmap fst a
     topicsAssigned = fmap snd a
