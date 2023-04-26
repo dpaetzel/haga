@@ -1,11 +1,12 @@
 * PROJECT haga
-** TODO see TODOs in code
+** TODO See TODOs in code
 ** MAYBE Add factory floor optimizer
    GA that optimizes factory floor
    - data: graph of workstations with edge weights being the number of walks
      between them
    - desired: optimal configuration that reduces crossings
    - space: 15 workstations that can be positioned in a 20 x 20 space
+** MAYBE Implement simple lcs in haga
 * Unsorted ideas
   - https://github.com/mikeizbicki/HerbiePlugin
   - https://github.com/mikeizbicki/subhask

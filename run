@@ -1,9 +1,10 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i fish -p fish feedgnuplot
+
 
 set exe (fd --type f  '^haga$' dist-newstyle/)
 
-"$exe" $argv | \
+
+"$exe" --iterations=10000 $argv | \
     # dist-newstyle/build/x86_64-linux/ghc-8.6.5/ga-0.1.0.0/x/ga/build/ga/ga $argv | \
     feedgnuplot \
     --terminal "x11 background '#ffffff'" \

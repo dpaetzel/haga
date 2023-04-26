@@ -20,7 +20,8 @@ category:            Optimization
 build-type:          Simple
 
 library
-  build-depends:       base ^>=4.13.0.0
+  build-depends:       base ^>=4.14.0.0
+                     , cassava
                      , extra
                      , MonadRandom
                      , monad-loops
@@ -30,9 +31,11 @@ library
                      , QuickCheck
                      , quickcheck-instances
                      , random
-                     , random-fu
+                     -- 0.3.0.0 introduces at least one truly breaking change.
+                     , random-fu <0.3.0.0
                      , random-shuffle
                      , text
+                     , wl-pprint-text
   default-language:    Haskell2010
   ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans
   hs-source-dirs:      src
@@ -40,9 +43,12 @@ library
                      , Seminar
                      , Pretty
                      , Szenario191
+                     , Szenario202
+                     , Analysis
 
 executable haga
-  build-depends:       base ^>=4.13.0.0
+  build-depends:       base ^>=4.14.0.0
+                     , cassava
                      , extra
                      , MonadRandom
                      , monad-loops
@@ -52,9 +58,11 @@ executable haga
                      , QuickCheck
                      , quickcheck-instances
                      , random
-                     , random-fu
+                     -- 0.3.0.0 introduces at least one truly breaking change.
+                     , random-fu <0.3.0.0
                      , random-shuffle
                      , text
+                     , wl-pprint-text
   default-language:    Haskell2010
   ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans
   hs-source-dirs:      src
@@ -63,9 +71,11 @@ executable haga
                      , Seminar
                      , Pretty
                      , Szenario191
+                     , Szenario202
 
 executable haga-test
-  build-depends:       base ^>=4.13.0.0
+  build-depends:       base ^>=4.14.0.0
+                     , cassava
                      , Cabal
                      , extra
                      , MonadRandom
@@ -76,9 +86,11 @@ executable haga-test
                      , QuickCheck
                      , quickcheck-instances
                      , random
-                     , random-fu
+                     -- 0.3.0.0 introduces at least one truly breaking change.
+                     , random-fu <0.3.0.0
                      , random-shuffle
                      , text
+                     , wl-pprint-text
   default-language:    Haskell2010
   ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans
   hs-source-dirs:      src
