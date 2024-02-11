@@ -123,7 +123,7 @@ prioOf' p (Just s) (Just t) = prioOf p s t
 
 instance Individual I where
   new (I p _) =
-    sample $ I p . zip students' <$> shuffle topics'
+    I p . zip students' <$> shuffle topics'
     where
       topics' = (Just <$> topics p) ++ tPadding
       tPadding = replicate (length (students p) - length (topics p)) Nothing
@@ -135,8 +135,8 @@ instance Individual I where
       fromIntegral . uncurry (prioOf' p) <$> a
 
   mutate (I p a) = do
-    x <- sample $ Uniform 0 (length a - 1)
-    y <- sample $ Uniform 0 (length a - 1)
+    x <- uniform 0 (length a - 1)
+    y <- uniform 0 (length a - 1)
     return . I p $ switch x y a
 
   -- \|
@@ -147,7 +147,7 @@ instance Individual I where
   --
   crossover1 (I p a1) (I _ a2) = do
     let l = fromIntegral $ min (length a1) (length a2) :: Double
-    x <- sample $ Uniform 0 l
+    x <- uniform 0 l
     let a1' = zipWith3 (f x) a1 a2 [0 ..]
     let a2' = zipWith3 (f x) a2 a1 [0 ..]
     if valid p a1' && valid p a2'

@@ -5,10 +5,10 @@
 import Options.Applicative
 import Pipes
 import Pretty
-import Protolude hiding (for, option)
+import Protolude hiding (for)
 import System.IO
 -- import Szenario212Pun
-import Szenario222
+import Szenario191
 
 data Options = Options
   { iterations :: N,
@@ -48,15 +48,14 @@ main :: IO ()
 main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
-    pop <- population (populationSize opts) (I prios [])
+    let pop = population (populationSize opts) (I prios [])
     pop' <-
-      runEffect $
-        for (run (tournament 2) 2 1 (5 / 100) pop (steps $ iterations opts)) log
+      runEffect (for (run (tournament 2) 2 1 (5 / 100) pop (steps (iterations opts))) logCsv)
     (res, _) <- bests 5 pop'
     sequence_ $ format <$> res
   where
     format s = do
       f <- liftIO $ fitness s
       putErrText $ show f <> "\n" <> pretty s
-    log = putText . csv
+    logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f
