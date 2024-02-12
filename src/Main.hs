@@ -51,11 +51,11 @@ main =
     let pop = population (populationSize opts) (I prios [])
     pop' <-
       runEffect (for (run (tournament 2) 2 1 (5 / 100) pop (steps (iterations opts))) logCsv)
-    (res, _) <- bests 5 pop'
+    let (res, _) = bests 5 pop'
     sequence_ $ format <$> res
   where
     format s = do
-      f <- liftIO $ fitness s
+      let f = fitness s
       putErrText $ show f <> "\n" <> pretty s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f

@@ -67,7 +67,7 @@ class Eq i => Individual i where
   --
   --  We explicitely allow fitness values to be have any sign (see, for example,
   --  'proportionate1').
-  fitness :: (Monad m) => i -> m R
+  fitness :: i -> R
 
   -- |
   --  Performs an n-point crossover.
@@ -92,7 +92,7 @@ instance Individual Integer where
 
   crossover1 i1 i2 = return $ Just (i1 - i2, i2 - i1)
 
-  fitness = return . fromIntegral . negate
+  fitness = fromIntegral . negate
 
 -- |
 -- Populations are just basic non-empty lists.
@@ -135,54 +135,49 @@ children2 nX i1 i2 = do
 --
 -- If @k <= 0@, this returns the best one anyway (as if @k == 1@).
 bestsBy ::
-  (Individual i, Monad m) =>
+  (Individual i) =>
   N ->
-  (i -> m R) ->
+  (i -> R) ->
   Population i ->
-  m (NonEmpty i, [i])
-bestsBy k f pop@(i :| pop')
+  (NonEmpty i, [i])
+bestsBy k f pop
   | k <= 0 = bestsBy 1 f pop
-  | otherwise = foldM run (i :| [], []) pop'
-  where
-    run (bests, rest) i =
-      ((NE.fromList . NE.take k) &&& (rest <>) . NE.drop k)
-        <$> sorted (i <| bests)
-    sorted =
-      fmap (fmap fst . NE.sortOn (Down . snd)) . traverse (\i -> (i,) <$> f i)
+  | otherwise = let (elites, rest) = NE.splitAt k $ map fst $ NE.sortBy (comparing (Down . snd)) $ map (\i -> (i, f i)) pop
+                in (NE.fromList elites, rest)
 
 -- |
 -- The @k@ best individuals in the population when comparing using the supplied
 -- function.
-bestsBy' :: (Individual i, Monad m) => N -> (i -> m R) -> Population i -> m [i]
-bestsBy' k f =
-  fmap (NE.take k . fmap fst . NE.sortBy (comparing (Down . snd)))
-    . traverse (\i -> (i,) <$> f i)
+bestsBy' :: (Individual i) => N -> (i -> R) -> Population i -> [i]
+bestsBy' k f pop
+  | k <= 0 = bestsBy' 1 f pop
+  | otherwise = NE.take k $ map fst $ NE.sortBy (comparing (Down . snd)) $ map (\i -> (i, f i)) pop
 
 prop_bestsBy_isBestsBy' :: Individual a => Int -> Population a -> Property
 prop_bestsBy_isBestsBy' k pop =
   k > 0 ==>
     monadicIO $
       do
-        a <- fst <$> bestsBy k fitness pop
-        b <- bestsBy' k fitness pop
+        let a = fst $ bestsBy k fitness pop
+        let b = bestsBy' k fitness pop
         assert $ NE.toList a == b
 
 prop_bestsBy_lengths :: Individual a => Int -> Population a -> Property
 prop_bestsBy_lengths k pop =
   k > 0 ==> monadicIO $ do
-    (bests, rest) <- bestsBy k fitness pop
+    let (bests, rest) = bestsBy k fitness pop
     assert $
       length bests == min k (length pop) && length bests + length rest == length pop
 
 -- |
 -- The @k@ worst individuals in the population (and the rest of the population).
-worst :: (Individual i, Monad m) => N -> Population i -> m (NonEmpty i, [i])
-worst = flip bestsBy (fmap negate . fitness)
+worst :: (Individual i) => N -> Population i -> (NonEmpty i, [i])
+worst k pop = bestsBy k (negate . fitness) pop
 
 -- |
 -- The @k@ best individuals in the population (and the rest of the population).
-bests :: (Individual i, Monad m) => N -> Population i -> m (NonEmpty i, [i])
-bests = flip bestsBy fitness
+bests :: (Individual i) => N -> Population i -> (NonEmpty i, [i])
+bests k pop = bestsBy k fitness pop
 
 -- TODO add top x percent parent selection (select n guys, sort by fitness first)
 
@@ -210,20 +205,17 @@ stepSteady select nParents nX pElite pop = do
   iParents <- select nParents pop
   iChildren <- NE.filter (`notElem` pop) <$> children nX iParents
   let pop' = pop `NE.appendl` iChildren
-  (elitists, rest) <- bests nBest pop'
+  let eliteSize = floor . (pElite *) . fromIntegral $ NE.length pop
+  let (elitists, rest) = bests eliteSize pop'
   case rest of
     [] -> return elitists
-    (i : is) ->
+    otherwise ->
       -- NOTE 'bests' always returns at least one individual, thus we need this
       -- slightly ugly branching
       if length elitists == length pop
         then return elitists
         else
-          (elitists <>)
-            . fst
-            <$> bests (length pop - length elitists) (i :| is)
-  where
-    nBest = floor . (pElite *) . fromIntegral $ NE.length pop
+          return $ elitists <> (fst $ bests (length pop - length elitists) (NE.fromList rest))
 
 prop_stepSteady_constantPopSize ::
   (Individual a, Show a) => NonEmpty a -> Property
@@ -267,9 +259,7 @@ run select nParents nX pElite pop term = do
                 else do
                   let nextPop = stepSteady select nParents nX pElite currPop'
                   nextPop' <- lift $ sampleFrom mwc $ nextPop
-                  (iBests, _) <- lift $ bests 1 nextPop'
-                  fs <- lift . sequence $ fitness <$> iBests
-                  let fBest = NE.head fs
+                  let fBest = fitness $ NE.head $ fst $ bests 1 nextPop'
                   Pipes.yield (generation, fBest)
                   x nextPop (generation + 1)
         x pop 0
@@ -325,9 +315,9 @@ tournament1 ::
 tournament1 nTrnmnt pop
   -- TODO Use Positive for this constraint
   | nTrnmnt <= 0 = undefined
-  | otherwise = trnmnt >>= fmap (NE.head . fst) . bests 1
-  where
-    trnmnt = withoutReplacement nTrnmnt pop
+  | otherwise = do
+        paricipants <- withoutReplacement nTrnmnt pop
+        return $ NE.head $ fst $ bests 1 paricipants
 
 -- |
 -- Selects @n@ individuals uniformly at random from the population (without

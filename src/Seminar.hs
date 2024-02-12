@@ -131,8 +131,7 @@ instance Individual I where
       sPadding = replicate (length (topics p) - length (students p)) Nothing
 
   fitness (I p a) =
-    return . negate . sum $
-      fromIntegral . uncurry (prioOf' p) <$> a
+    negate . sum $ fromIntegral . uncurry (prioOf' p) <$> a
 
   mutate (I p a) = do
     x <- uniform 0 (length a - 1)
