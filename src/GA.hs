@@ -258,8 +258,7 @@ run select nParents nX pElite pop term = do
                 then return currPop'
                 else do
                   let nextPop = stepSteady select nParents nX pElite currPop'
-                  nextPop' <- lift $ sampleFrom mwc $ nextPop
-                  let fBest = fitness $ NE.head $ fst $ bests 1 nextPop'
+                  let fBest = fitness $ NE.head $ fst $ bests 1 currPop'
                   Pipes.yield (generation, fBest)
                   x nextPop (generation + 1)
         x pop 0
