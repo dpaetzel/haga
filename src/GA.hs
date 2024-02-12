@@ -1,12 +1,11 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
+
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-
+{-# LANGUAGE MultiParamTypeClasses #-}
 -- |
 -- Module      : GA
 -- Description : Abstract genetic algorithm
@@ -25,11 +24,12 @@ module GA where
 import Control.Arrow hiding (first, second)
 import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
-import qualified Data.List.NonEmpty.Extra as NE (appendl, sortOn)
+import qualified Data.List.NonEmpty.Extra as NE (appendl)
 import Data.Random
 import System.Random.MWC (create)
 import Pipes
 import Protolude
+import Pretty
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Monadic
@@ -41,33 +41,28 @@ type N = Int
 
 type R = Double
 
-class Eq i => Individual i where
-  -- |
-  --  Generates a completely random individual given an existing individual.
-  --
-  --  We have to add @i@ here as a parameter in order to be able to inject stuff.
 
-  -- TODO This (and also, Seminar.I, which contains an ugly parameter @p@) has
-  -- to be done nicer!
-  new :: i -> RVar i
+-- |
+--  An Environment that Individuals of type i can be created from
+--  It stores all information required to create and change Individuals correctly
+--
+class (Eq e, Pretty e, Individual i) => Environment i e where
+  -- |
+  --  Generates a completely random individual.
+  --
+  new :: e -> RVar i
 
   -- |
   --  Generates a random population of the given size.
-  population :: N -> i -> RVar (Population i)
-  population n i
+  population :: e -> N -> RVar (Population i)
+  population env n
     | n <= 0 = undefined
-    | otherwise = NE.fromList <$> replicateM n (new i)
+    | otherwise = NE.fromList <$> replicateM n (new env)
 
-  mutate :: i -> RVar i
+  mutate :: e -> i -> RVar i
 
-  crossover1 :: i -> i -> RVar (Maybe (i, i))
+  crossover1 :: e -> i -> i -> RVar (Maybe (i, i))
 
-  -- |
-  --  An individual's fitness. Higher values are considered “better”.
-  --
-  --  We explicitely allow fitness values to be have any sign (see, for example,
-  --  'proportionate1').
-  fitness :: i -> R
 
   -- |
   --  Performs an n-point crossover.
@@ -75,24 +70,28 @@ class Eq i => Individual i where
   --  Given the function for single-point crossover, 'crossover1', this function can
   --  be derived through recursion and a monad combinator (which is also the default
   --  implementation).
-  crossover :: N -> i -> i -> RVar (Maybe (i, i))
-  crossover n i1 i2
+  crossover :: e -> N -> i -> i -> RVar (Maybe (i, i))
+  crossover env n i1 i2
     | n <= 0 = return $ Just (i1, i2)
     | otherwise = do
-        isM <- crossover1 i1 i2
-        maybe (return Nothing) (uncurry (crossover (n - 1))) isM
+        isM <- crossover1 env i1 i2
+        maybe (return Nothing) (uncurry (crossover env (n - 1))) isM
 
 -- |
--- Needed for QuickCheck tests, for now, a very simplistic implementation should
--- suffice.
-instance Individual Integer where
-  new _ = uniform 0 (0 + 100000)
+--  An Evaluator that Individuals of type i can be evaluated by
+--  It stores all information required to evaluate an individuals fitness
+--
+class (Eq e, Individual i) => Evaluator i e where
+  -- |
+  --  An individual's fitness. Higher values are considered “better”.
+  --
+  --  We explicitely allow fitness values to be have any sign (see, for example,
+  --  'proportionate1').
+  fitness :: e -> i -> R
 
-  mutate i = uniform (i - 10) (i + 10)
+class (Pretty i, Eq i) => Individual i
 
-  crossover1 i1 i2 = return $ Just (i1 - i2, i2 - i1)
 
-  fitness = fromIntegral . negate
 
 -- |
 -- Populations are just basic non-empty lists.
@@ -101,32 +100,24 @@ type Population i = NonEmpty i
 -- |
 -- Produces offspring circularly from the given list of parents.
 children ::
-  (Individual i) =>
+  (Individual i, Environment i e) =>
+  e ->
   -- | The @nX@ of the @nX@-point crossover operator
   N ->
   NonEmpty i ->
   RVar (NonEmpty i)
-children _ (i :| []) = (:| []) <$> mutate i
-children nX (i1 :| [i2]) = children2 nX i1 i2
-children nX (i1 :| i2 : is') =
-  (<>) <$> children2 nX i1 i2 <*> children nX (NE.fromList is')
+children e _ (i :| []) = (:| []) <$> mutate e i
+children e nX (i1 :| [i2]) = children2 e nX i1 i2
+children e nX (i1 :| i2 : is') =
+  (<>) <$> children2 e nX i1 i2 <*> children e nX (NE.fromList is')
 
-prop_children_asManyAsParents ::
-  (Individual a, Show a) => N -> NonEmpty a -> Property
-prop_children_asManyAsParents nX is =
-  again $
-    monadicIO $
-      do
-        mwc <- Test.QuickCheck.Monadic.run create
-        is' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (children nX is)
-        return $ counterexample (show is') $ length is' == length is
 
-children2 :: (Individual i) => N -> i -> i -> RVar (NonEmpty i)
-children2 nX i1 i2 = do
+children2 :: (Individual i, Environment i e) => e -> N -> i -> i -> RVar (NonEmpty i)
+children2 e nX i1 i2 = do
   -- TODO Add crossover probability?
-  (i3, i4) <- fromMaybe (i1, i2) <$> crossover nX i1 i2
-  i5 <- mutate i3
-  i6 <- mutate i4
+  (i3, i4) <- fromMaybe (i1, i2) <$> crossover e nX i1 i2
+  i5 <- mutate e i3
+  i6 <- mutate e i4
   return $ i5 :| [i6]
 
 -- |
@@ -153,31 +144,16 @@ bestsBy' k f pop
   | k <= 0 = bestsBy' 1 f pop
   | otherwise = NE.take k $ map fst $ NE.sortBy (comparing (Down . snd)) $ map (\i -> (i, f i)) pop
 
-prop_bestsBy_isBestsBy' :: Individual a => Int -> Population a -> Property
-prop_bestsBy_isBestsBy' k pop =
-  k > 0 ==>
-    monadicIO $
-      do
-        let a = fst $ bestsBy k fitness pop
-        let b = bestsBy' k fitness pop
-        assert $ NE.toList a == b
-
-prop_bestsBy_lengths :: Individual a => Int -> Population a -> Property
-prop_bestsBy_lengths k pop =
-  k > 0 ==> monadicIO $ do
-    let (bests, rest) = bestsBy k fitness pop
-    assert $
-      length bests == min k (length pop) && length bests + length rest == length pop
 
 -- |
 -- The @k@ worst individuals in the population (and the rest of the population).
-worst :: (Individual i) => N -> Population i -> (NonEmpty i, [i])
-worst k pop = bestsBy k (negate . fitness) pop
+worst :: (Individual i, Evaluator i e) => e -> N -> Population i -> (NonEmpty i, [i])
+worst e k = bestsBy k (negate . fitness e)
 
 -- |
 -- The @k@ best individuals in the population (and the rest of the population).
-bests :: (Individual i) => N -> Population i -> (NonEmpty i, [i])
-bests k pop = bestsBy k fitness pop
+bests :: (Individual i, Evaluator i e) => e -> N -> Population i -> (NonEmpty i, [i])
+bests e k = bestsBy k (fitness e)
 
 -- TODO add top x percent parent selection (select n guys, sort by fitness first)
 
@@ -188,7 +164,9 @@ bests k pop = bestsBy k fitness pop
 -- elitist, even if the percentage is 0 or low enough for rounding to result in 0
 -- elitists).
 stepSteady ::
-  (Individual i) =>
+  (Individual i, Evaluator i eval, Environment i env ) =>
+  eval ->
+  env ->
   -- | Mechanism for selecting parents
   Selection RVar i ->
   -- | Number of parents @nParents@ for creating @nParents@ children
@@ -199,46 +177,34 @@ stepSteady ::
   R ->
   Population i ->
   RVar (Population i)
-stepSteady select nParents nX pElite pop = do
+stepSteady eval env select nParents nX pElite pop = do
   -- TODO Consider keeping the fitness evaluations already done for pop (so we
   -- only reevaluate iChildren)
   iParents <- select nParents pop
-  iChildren <- NE.filter (`notElem` pop) <$> children nX iParents
+  iChildren <- NE.filter (`notElem` pop) <$> children env nX iParents
   let pop' = pop `NE.appendl` iChildren
   let eliteSize = floor . (pElite *) . fromIntegral $ NE.length pop
-  let (elitists, rest) = bests eliteSize pop'
+  let (elitists, rest) = bests eval eliteSize pop'
   case rest of
     [] -> return elitists
-    otherwise ->
+    _notEmpty ->
       -- NOTE 'bests' always returns at least one individual, thus we need this
       -- slightly ugly branching
       if length elitists == length pop
         then return elitists
         else
-          return $ elitists <> (fst $ bests (length pop - length elitists) (NE.fromList rest))
-
-prop_stepSteady_constantPopSize ::
-  (Individual a, Show a) => NonEmpty a -> Property
-prop_stepSteady_constantPopSize pop =
-  forAll
-    ( (,)
-        <$> choose (1, length pop)
-        <*> choose (1, length pop)
-    )
-    $ \(nParents, nX) -> monadicIO $ do
-      let pElite = 0.1
-      mwc <- Test.QuickCheck.Monadic.run create
-      pop' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (stepSteady (tournament 4) nParents nX pElite pop)
-      return . counterexample (show pop') $ length pop' == length pop
+          return $ elitists <> (fst $ bests eval (length pop - length elitists) (NE.fromList rest))
 
 -- |
--- Given an initial population, runs the GA until the termination criterion is
+-- Given an Enviroment and Evaluator, runs the GA until the termination criterion is
 -- fulfilled.
 --
 -- Uses the pipes library to, in each step, 'Pipes.yield' the currently best known
 -- solution.
 run ::
-  (Individual i) =>
+  (Individual i, Evaluator i eval, Environment i env ) =>
+  eval ->
+  env ->
   -- | Mechanism for selecting parents
   Selection RVar i ->
   -- | Number of parents @nParents@ for creating @nParents@ children
@@ -247,21 +213,22 @@ run ::
   N ->
   -- | Elitism ratio @pElite@
   R ->
-  RVar (Population i) ->
+  -- | Population size
+  N ->
   Termination i ->
   Producer (Int, R) IO (Population i)
-run select nParents nX pElite pop term = do
+run eval env select nParents nX pElite nPop term = do
         mwc <- lift create
         let x = \currPop generation -> do
               currPop' <- lift $ sampleFrom mwc $ currPop
               if term currPop' generation
                 then return currPop'
                 else do
-                  let nextPop = stepSteady select nParents nX pElite currPop'
-                  let fBest = fitness $ NE.head $ fst $ bests 1 currPop'
+                  let nextPop = stepSteady eval env select nParents nX pElite currPop'
+                  let fBest = fitness eval $ NE.head $ fst $ bests eval 1 currPop'
                   Pipes.yield (generation, fBest)
                   x nextPop (generation + 1)
-        x pop 0
+        x (population env nPop) 0
 
 
 -- * Selection mechanisms
@@ -289,34 +256,24 @@ chain select1 n pop
 -- Selects @n@ individuals from the population by repeatedly selecting a single
 -- indidual using a tournament of the given size (the same individual can be
 -- selected multiple times, see 'chain').
-tournament :: (Individual i) => N -> Selection RVar i
-tournament nTrnmnt = chain (tournament1 nTrnmnt)
-
-prop_tournament_selectsN :: Individual a => Int -> Int -> NonEmpty a -> Property
-prop_tournament_selectsN nTrnmnt n pop =
-  0 < nTrnmnt
-    && nTrnmnt < length pop
-    && 0 < n
-    ==> monadicIO
-    $ do
-      mwc <- Test.QuickCheck.Monadic.run create
-      pop' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (tournament 2 n pop)
-      assert $ length pop' == n
+tournament :: (Individual i, Evaluator i e) => e -> N -> Selection RVar i
+tournament eval nTrnmnt = chain (tournament1 eval nTrnmnt)
 
 -- |
 -- Selects one individual from the population using tournament selection.
 tournament1 ::
-  (Individual i) =>
+  (Individual i, Evaluator i e) =>
+  e ->
   -- | Tournament size
   N ->
   Population i ->
   RVar i
-tournament1 nTrnmnt pop
+tournament1 eval nTrnmnt pop
   -- TODO Use Positive for this constraint
   | nTrnmnt <= 0 = undefined
   | otherwise = do
         paricipants <- withoutReplacement nTrnmnt pop
-        return $ NE.head $ fst $ bests 1 paricipants
+        return $ NE.head $ fst $ bests eval 1 paricipants
 
 -- |
 -- Selects @n@ individuals uniformly at random from the population (without
@@ -330,13 +287,6 @@ withoutReplacement 0 _ = undefined
 withoutReplacement n pop
   | n >= length pop = return pop
   | otherwise = fmap (NE.fromList) (shuffleNofM n (length pop) (NE.toList pop))
-
-prop_withoutReplacement_selectsN :: Int -> NonEmpty a -> Property
-prop_withoutReplacement_selectsN n pop =
-  0 < n && n <= length pop ==> monadicIO (do
-    mwc <- Test.QuickCheck.Monadic.run create
-    pop' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (withoutReplacement n pop)
-    assert $ length pop' == n)
 
 -- * Termination criteria
 
@@ -358,13 +308,105 @@ shuffle' :: NonEmpty a -> RVar (NonEmpty a)
 shuffle' xs@(_ :| []) = return xs
 shuffle' xs = fmap (NE.fromList) (shuffle (toList xs))
 
+
+
+instance Pretty Integer where
+  pretty i = "Found int: " <> show i
+
+instance Individual Integer
+
+newtype IntTestEnviroment = IntTestEnviroment ((Integer,Integer),Integer) deriving (Eq) -- IntTestEnviroment ((0,100000),10)
+
+instance Pretty IntTestEnviroment where
+  -- instance Pretty (Maybe Student) where
+  pretty (IntTestEnviroment ((i,j),k)) = "IntTestEnviroment of Individuals between " <> (show i) <> " and "  <> (show j) <> " variance when mutating is " <> (show k)
+
+
+instance Environment Integer IntTestEnviroment where
+
+  new (IntTestEnviroment ((from,to),_)) = uniform from to
+
+  mutate (IntTestEnviroment ((from,to),wiggle)) i = uniform (max from (i - wiggle)) (min to (i + wiggle))
+
+  crossover1 _ i1 i2 = do
+    i1' <- uniform i1 i2
+    i2' <- uniform i1 i2
+    return $ Just (i1',i2')
+
+data NoData = NoData deriving (Eq)
+
+instance Evaluator Integer NoData  where
+
+  fitness _ = fromIntegral . negate
+
+prop_children_asManyAsParents ::
+  N -> NonEmpty Integer -> Property
+prop_children_asManyAsParents nX is =
+  again $
+    monadicIO $
+      do
+        let e = IntTestEnviroment ((0,100000),10)
+        mwc <- Test.QuickCheck.Monadic.run create
+        is' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (children e nX is)
+        return $ counterexample (show is') $ length is' == length is
+
+
+prop_bestsBy_isBestsBy' :: Int -> Population Integer -> Property
+prop_bestsBy_isBestsBy' k pop =
+  k > 0 ==>
+    monadicIO $
+      do
+        let a = fst $ bestsBy k (fitness NoData) pop
+        let b = bestsBy' k (fitness NoData) pop
+        assert $ NE.toList a == b
+
+prop_bestsBy_lengths :: Int -> Population Integer -> Property
+prop_bestsBy_lengths k pop =
+  k > 0 ==> monadicIO $ do
+    let (bests, rest) = bestsBy k (fitness NoData) pop
+    assert $
+      length bests == min k (length pop) && length bests + length rest == length pop
+prop_stepSteady_constantPopSize ::
+  NonEmpty Integer -> Property
+prop_stepSteady_constantPopSize pop =
+  forAll
+    ( (,)
+        <$> choose (1, length pop)
+        <*> choose (1, length pop)
+    )
+    $ \(nParents, nX) -> monadicIO $ do
+      let pElite = 0.1
+      let eval = NoData
+      let env = IntTestEnviroment ((0,100000),10)
+      mwc <- Test.QuickCheck.Monadic.run create
+      pop' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (stepSteady eval env (tournament eval 4) nParents nX pElite pop)
+      return . counterexample (show pop') $ length pop' == length pop
+
+prop_tournament_selectsN :: Int -> Int -> NonEmpty Integer -> Property
+prop_tournament_selectsN nTrnmnt n pop =
+  0 < nTrnmnt
+    && nTrnmnt < length pop
+    && 0 < n
+    ==> monadicIO
+    $ do
+      mwc <- Test.QuickCheck.Monadic.run create
+      pop' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (tournament NoData 2 n pop)
+      assert $ length pop' == n
+
+prop_withoutReplacement_selectsN :: Int -> NonEmpty a -> Property
+prop_withoutReplacement_selectsN n pop =
+  0 < n && n <= length pop ==> monadicIO (do
+    mwc <- Test.QuickCheck.Monadic.run create
+    pop' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (withoutReplacement n pop)
+    assert $ length pop' == n)
+
 prop_shuffle_length :: NonEmpty a -> Property
 prop_shuffle_length xs = monadicIO(do
   mwc <- Test.QuickCheck.Monadic.run create
   xs' <- Test.QuickCheck.Monadic.run $ sampleFrom mwc (shuffle' xs)
   assert $ length xs' == length xs)
 
-return []
-
 runTests :: IO Bool
 runTests = $quickCheckAll
+
+return []

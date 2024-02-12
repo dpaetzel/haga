@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Seminar where
 
@@ -96,47 +97,29 @@ prop_prioOf_singletonNotFound =
 lowestPriority :: Priorities -> Int
 lowestPriority = fromMaybe 0 . maximumMay . fmap snd . join . fmap snd . unP
 
-type Assignment = [(Maybe Student, Maybe Topic)]
+type Assignment = [(Maybe Student, Maybe  Topic)]
 
-data I = I Priorities Assignment
-  deriving (Eq, Show)
+instance Individual Assignment
 
-instance Pretty I where
-  pretty (I p a) =
-    T.unlines (gene <$> a)
-    where
-      gene :: (Maybe Student, Maybe Topic) -> Text
-      gene (s, t) =
-        pretty s <> ": " <> pretty t <> prio s t
-      prio :: Maybe Student -> Maybe Topic -> Text
-      prio s t = " (" <> show (prioOf' p s t) <> ")"
+newtype AssignmentEnviroment = AssignmentEnviroment ([Student],[Topic]) deriving Eq
 
--- |
--- The priority value given by a student to a topic including the case of her not
--- receiving a topic.
-prioOf' :: Priorities -> Maybe Student -> Maybe Topic -> Int
--- TODO Maybe make this neutral?
-prioOf' p Nothing Nothing = lowestPriority p + 2
-prioOf' p (Just s) Nothing = lowestPriority p + 2
-prioOf' p Nothing (Just t) = lowestPriority p + 2
-prioOf' p (Just s) (Just t) = prioOf p s t
+instance Pretty AssignmentEnviroment where
+  pretty (AssignmentEnviroment (persons,assignables)) = "Persons: " <> show persons <> " Assignables: " <> show assignables
 
-instance Individual I where
-  new (I p _) =
-    I p . zip students' <$> shuffle topics'
-    where
-      topics' = (Just <$> topics p) ++ tPadding
-      tPadding = replicate (length (students p) - length (topics p)) Nothing
-      students' = (Just <$> students p) ++ sPadding
-      sPadding = replicate (length (topics p) - length (students p)) Nothing
+instance Environment Assignment AssignmentEnviroment where
+  new (AssignmentEnviroment (persons,assignables)) = do
+    let aPadding = replicate (length persons - length assignables) Nothing
+    let paddedAssignables = (Just <$> assignables) ++ aPadding
+    let pPadding = replicate (length assignables - length persons) Nothing
+    let paddedPersons = (Just <$> persons) ++ pPadding
 
-  fitness (I p a) =
-    negate . sum $ fromIntegral . uncurry (prioOf' p) <$> a
+    mixedAssignables <- shuffle paddedAssignables
+    return $ zip paddedPersons mixedAssignables
 
-  mutate (I p a) = do
-    x <- uniform 0 (length a - 1)
-    y <- uniform 0 (length a - 1)
-    return . I p $ switch x y a
+  mutate _ assignment = do
+    x <- uniform 0 (length assignment - 1)
+    y <- uniform 0 (length assignment - 1)
+    return $ switch x y assignment
 
   -- \|
   --  Borrowed from TSP: Crossover cuts the parents in two and swaps them (if this
@@ -144,16 +127,39 @@ instance Individual I where
   --
   --  TODO Assumes that both individuals are based on the same priorities.
   --
-  crossover1 (I p a1) (I _ a2) = do
-    let l = fromIntegral $ min (length a1) (length a2) :: Double
+  crossover1 e assignment1 assignment2 = do
+    let l = fromIntegral $ min (length assignment1) (length assignment2) :: Double
     x <- uniform 0 l
-    let a1' = zipWith3 (f x) a1 a2 [0 ..]
-    let a2' = zipWith3 (f x) a2 a1 [0 ..]
-    if valid p a1' && valid p a2'
-      then return . Just $ (I p a1', I p a2')
+    let assignment1' = zipWith3 (f x) assignment1 assignment2 [0 ..]
+    let assignment2' = zipWith3 (f x) assignment2 assignment1 [0 ..]
+    if valid e assignment1' && valid e assignment2'
+      then return . Just $ ( assignment1', assignment2')
       else return Nothing
     where
       f x v1 v2 i = if i <= x then v1 else v2
+
+
+instance Pretty Assignment where
+  pretty (a) =
+    T.unlines (gene <$> a)
+    where
+      gene :: (Maybe Student, Maybe Topic) -> Text
+      gene (s, t) =
+        pretty s <> ": " <> pretty t
+
+-- |
+-- The priority value given by a student to a topic including the case of her not
+-- receiving a topic.
+prioOf' :: Priorities -> Maybe Student -> Maybe Topic -> Int
+-- TODO Maybe make this neutral?
+prioOf' p Nothing Nothing = lowestPriority p + 2
+prioOf' p (Just _) Nothing = lowestPriority p + 2
+prioOf' p Nothing (Just _) = lowestPriority p + 2
+prioOf' p (Just s) (Just t) = prioOf p s t
+
+instance Evaluator Assignment Priorities where
+  fitness prio assment =
+    negate . sum $ fromIntegral . uncurry (prioOf' prio) <$> assment
 
 -- |
 -- Swaps topics at positions 'i'' and 'j'' in the given assignment.
@@ -161,14 +167,10 @@ switch :: Int -> Int -> Assignment -> Assignment
 switch i' j' xs
   | i' == j' = xs
   | 0 <= i' && i' < length xs && 0 <= j' && j' < length xs =
-      let i = min i' j'
-          j = max i' j'
-          ei = xs !! i
-          ej = xs !! j
-          left = take i xs
-          middle = take (j - i - 1) $ drop (i + 1) xs
-          right = drop (j + 1) xs
-       in left ++ [(fst ei, snd ej)] ++ middle ++ [(fst ej, snd ei)] ++ right
+    zipWith (\ind y ->
+    if ind == i' then (fst y, snd (xs !! j'))
+    else if ind == j' then (fst y, snd (xs !! i'))
+    else y) [0..] xs
   | otherwise = xs
 
 -- |
@@ -177,10 +179,10 @@ switch i' j' xs
 -- less topics than students).
 --
 -- Assumes that the priorities are well-formed.
-valid :: Priorities -> Assignment -> Bool
-valid p a =
+valid :: AssignmentEnviroment -> Assignment -> Bool
+valid (AssignmentEnviroment (persons,assignables)) a =
   -- all students must be part of the solution
-  sort (students p) == (catMaybes $ sort studentsAssigned)
+  sort (persons) == (catMaybes $ sort studentsAssigned)
     -- each actual topic (i.e. not “no topic”) is assigned at most once
     && nubOrd (delete Nothing topicsAssigned) == delete Nothing topicsAssigned
   where

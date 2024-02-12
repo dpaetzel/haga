@@ -48,14 +48,15 @@ main :: IO ()
 main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
-    let pop = population (populationSize opts) (I prios [])
+    let env = AssignmentEnviroment (students prios, topics prios)
+    let run' = run prios env (tournament prios 2) 2 1 (5 / 100) (populationSize opts) (steps (iterations opts)) :: Producer (Int, R) IO (Population Assignment)
     pop' <-
-      runEffect (for (run (tournament 2) 2 1 (5 / 100) pop (steps (iterations opts))) logCsv)
-    let (res, _) = bests 5 pop'
-    sequence_ $ format <$> res
+      runEffect (for run' logCsv)
+    let (res, _) = bests prios 5 pop'
+    mapM_ format res
   where
     format s = do
-      let f = fitness s
+      let f = fitness prios s
       putErrText $ show f <> "\n" <> pretty s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f
