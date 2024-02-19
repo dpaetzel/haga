@@ -19,7 +19,7 @@
 -- In order to use it for a certain problem, basically, you have to make your
 -- solution type an instance of 'Individual' and then simply call the 'run'
 -- function.
-module GA where
+module GA ( Environment,new, population, mutate, crossover1,crossover, Evaluator, fitness,  Individual, GA.run, tournament, N, R, Population, steps, bests, runTests) where
 
 import Control.Arrow hiding (first, second)
 import Data.List.NonEmpty ((<|))

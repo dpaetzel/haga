@@ -11,8 +11,8 @@ import System.IO
 import Szenario191
 
 data Options = Options
-  { iterations :: N,
-    populationSize :: N
+  { iterations :: !N,
+    populationSize :: !N
   }
 
 options :: Parser Options
