@@ -46,7 +46,7 @@ type R = Double
 --  An Environment that Individuals of type i can be created from
 --  It stores all information required to create and change Individuals correctly
 --
-class (Eq e, Pretty e, Individual i) => Environment i e where
+class (Pretty e, Individual i) => Environment i e where
   -- |
   --  Generates a completely random individual.
   --
