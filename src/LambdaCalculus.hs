@@ -15,6 +15,9 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import Data.Maybe
 import Data.Random
+import qualified Data.ByteString.Lazy as B
+import Data.Csv
+import Data.Proxy
 import qualified Data.Text as T
 import Data.Typeable
 import GA
@@ -23,6 +26,7 @@ import Protolude
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Monadic (assert, monadicIO)
 import qualified Type.Reflection as Ref
+import qualified Language.Haskell.Interpreter as Hint
 
 data ExpressionWeights = ExpressionWeights
   { lambdaSpucker :: Int,
@@ -38,6 +42,18 @@ data LambdaEnviroment = LambdaEnviroment
     targetType :: TypeRep,
     maxDepth :: Int,
     weights :: ExpressionWeights
+  }
+
+data LamdaExecutionEnv = LamdaExecutionEnv {
+    -- For now these need to define all available functions and types. Generic functions can be used.
+    imports :: [Text],
+    --Path to a CSV file containing the training dataset
+    trainingDataset :: FilePath,
+    --Path to a CSV file containing the dataset results
+    trainingDatasetRes :: FilePath,
+    exTargetType :: TypeRep,
+    -- todo: kindaHacky
+    results :: Map TypeRequester R
   }
 
 showSanifid:: Show a => a -> Text
@@ -76,7 +92,7 @@ type ConVal = Text
 
 -- LambdaSpucker - adds TypeRequester#1 as bound var and returns the result of TypeRequester#2
 
-data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq)
+data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq, Ord)
 
 asList :: LambdaExpression -> [TypeRequester]
 asList (LambdaSpucker tr1 tr2 _) = [tr1, tr2]
@@ -87,7 +103,7 @@ asList (Constan _) = []
 
 
 
-data TypeRequester = TR TypeRep (Maybe LambdaExpression) BoundVars deriving (Eq)
+data TypeRequester = TR TypeRep (Maybe LambdaExpression) BoundVars deriving (Eq, Ord)
 
 toLambdaExpressionS :: TypeRequester -> Text
 toLambdaExpressionS (TR typeRep (Just lambdaExpression) boundVars) = "((" <> eToLambdaExpressionS lambdaExpression <> ") :: (" <> show typeRep <> "))"
@@ -226,47 +242,68 @@ genLambdaVar' tr varType varNumber trs env@(LambdaEnviroment functions constants
       ret <- genLambdaVar' rest varType varNumber (trs ++ [newTypeRequ]) env depthLeft target boundVar
       return ret
 
+
 instance Environment TypeRequester LambdaEnviroment where
-new env@(LambdaEnviroment _ _ target maxDepth _) = do
-  tr <- genTypeRequester env maxDepth target []
-  return tr
+  new env@(LambdaEnviroment _ _ target maxDepth _) = do
+    tr <- genTypeRequester env maxDepth target []
+    return tr
 
-mutate env@(LambdaEnviroment _ _ _ maxDepth _) tr = do
-  let trCount = countTrsR(tr)
-  selectedTR <- uniform 1 trCount
-  let (depthAt,(TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
-  res <- genTypeRequester env depthAt trep bound
-  return $ replaceAtR selectedTR tr res
+  mutate env@(LambdaEnviroment _ _ _ maxDepth _) tr = do
+    let trCount = countTrsR(tr)
+    selectedTR <- uniform 1 trCount
+    let (depthAt,(TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
+    res <- genTypeRequester env depthAt trep bound
+    return $ replaceAtR selectedTR tr res
 
-crossover1 env@(LambdaEnviroment _ _ _ maxDepth _) tr1 tr2 = do
-  let trCount = countTrsR tr1
-  selectedIndex1 <- uniform 1 trCount
-  let (depthAt, selectedTr1@(TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
-  let indexes = findIndicesWhere tr2 ( == trep)
-  if length indexes == 0 then return Nothing else (do
-    (selectedTr2,selectedIndex2) <- randomElement indexes
+  crossover1 env@(LambdaEnviroment _ _ _ maxDepth _) tr1 tr2 = do
+    return Nothing
 
+instance Evaluator TypeRequester LamdaExecutionEnv where
+  fitness env tr = (results env) Map.! tr
 
+  calc env pop = do
+    let toAdd = NE.filter (\k -> Map.member k (results env) ) pop
+    let insertPair (key, val) m = Map.insert key val m
+    toInsert <- Hint.runInterpreter (evalResults env toAdd)
+    let res = foldr insertPair (results env) (fromRight undefined toInsert)
+    return env {results = res}
 
+--  let trCount = countTrsR tr1
+--  selectedIndex1 <- uniform 1 trCount
+--  let (depthAt, selectedTr1@(TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
+--  let indexes = findIndicesWhere tr2 ( == trep)
+--  if length indexes == 0 then return Nothing else (do
+--    (selectedTr2,selectedIndex2) <- randomElement indexes)
 
-    )
+evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, R)]
+evalResults ex trs = mapM (evalResult ex) trs
+
+data IrisClass = Setosa | Virginica | Versicolor
+
+evalResult :: LamdaExecutionEnv -> TypeRequester -> Hint.InterpreterT IO (TypeRequester, R)
+evalResult ex tr = do
+  Hint.loadModules (map show (imports ex))
+  result <- Hint.interpret (show (toLambdaExpressionS tr)) (Hint.as ::R -> R -> R -> IrisClass)
+  csv <- liftIO $ B.readFile (trainingDataset ex)
+  let recs = toList $ fromRight undefined $ decode NoHeader csv
+  let res = map (show (uncurry result)) recs
+  csvRes <- liftIO $ B.readFile (trainingDatasetRes ex)
+  let recsRes = toList $ fromRight undefined $ decode NoHeader csvRes
+  let score = (foldr (\ts s -> if fst ts == snd ts then s + 1 else s - 1) 0 (zip recsRes res)) :: R
+  return (tr, score)
 
 
 
 
 -- helper
-findIndicesWhere:: TypeRequester -> (TypeRep -> Bool) -> Int -> [(TypeRequester, Int)]
-findIndicesWhere tr@(TR t lE _) filte indx = case lE of
-                            Just le -> (tr, indx+1):(findIndicesWhere' (asList le) filte (indx+1))
-                            Nothing -> undefined
+--findIndicesWhere:: TypeRequester -> (TypeRep -> Bool) -> Int -> [(TypeRequester, Int)]
+--findIndicesWhere tr@(TR t lE _) filte indx = case lE of
+--                            Just le -> (tr, indx+1):(findIndicesWhere' (asList le) filte (indx+1))
+--                            Nothing -> undefined
 
-findIndicesWhere':: [TypeRequester] -> (TypeRep -> Bool) -> Int -> [(TypeRequester, Int)]
-findIndicesWhere' (tr:trs) f indx = (findIndicesWhere tr f indx) ++ (findIndicesWhere' trs f (indx + countTrsR tr))
+--findIndicesWhere':: [TypeRequester] -> (TypeRep -> Bool) -> Int -> [(TypeRequester, Int)]
+--findIndicesWhere' (tr:trs) f indx = (findIndicesWhere tr f indx) ++ (findIndicesWhere' trs f (indx + countTrsR tr))
 
-
-depthLeftAndTypeInSubtreeWithIndex :: [TypeRequester] -> Int -> Int -> (Int, TypeRequester)
-depthLeftAndTypeInSubtreeWithIndex (tr:trs) indexLeft depthLeft = if countTrsR tr >= indexLeft then depthLeftAndTypeAtR tr indexLeft depthLeft else depthLeftAndTypeInSubtreeWithIndex trs (indexLeft - countTrsR tr) depthLeft
-depthLeftAndTypeInSubtreeWithIndex [] indexLeft depthLeft = undefined
 
 replaceAtR:: Int -> TypeRequester -> TypeRequester -> TypeRequester
 replaceAtR 0 _ with = with

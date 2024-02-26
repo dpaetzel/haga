@@ -19,10 +19,11 @@
 -- In order to use it for a certain problem, basically, you have to make your
 -- solution type an instance of 'Individual' and then simply call the 'run'
 -- function.
-module GA ( Environment,new, population, mutate, crossover1,crossover, Evaluator, fitness,  Individual, GA.run, tournament, N, R, Population, steps, bests, runTests) where
+module GA ( Environment,new, population, mutate, crossover1,crossover, Evaluator, fitness, calc, Individual, GA.run, tournament, N, R, Population, steps, bests, runTests) where
 
 import Control.Arrow hiding (first, second)
 import Data.List.NonEmpty ((<|))
+import qualified Data.Map.Strict as Map
 import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty.Extra as NE (appendl)
 import Data.Random
@@ -81,7 +82,7 @@ class (Pretty e, Individual i) => Environment i e where
 --  An Evaluator that Individuals of type i can be evaluated by
 --  It stores all information required to evaluate an individuals fitness
 --
-class (Eq e, Individual i) => Evaluator i e where
+class (Individual i) => Evaluator i e where
   -- |
   --  An individual's fitness. Higher values are considered “better”.
   --
@@ -89,7 +90,13 @@ class (Eq e, Individual i) => Evaluator i e where
   --  'proportionate1').
   fitness :: e -> i -> R
 
-class (Pretty i, Eq i) => Individual i
+  -- TODO kinda hacky?!?
+  calc :: e ->  Population i -> IO e
+  calc eval _ = do
+    return eval
+
+
+class (Pretty i, Ord i) => Individual i
 
 
 
@@ -183,6 +190,8 @@ stepSteady eval env select nParents nX pElite pop = do
   iParents <- select nParents pop
   iChildren <- NE.filter (`notElem` pop) <$> children env nX iParents
   let pop' = pop `NE.appendl` iChildren
+  -- TODO kinda hacky?!?
+  eval <- liftIO $ calc eval pop'
   let eliteSize = floor . (pElite *) . fromIntegral $ NE.length pop
   let (elitists, rest) = bests eval eliteSize pop'
   case rest of

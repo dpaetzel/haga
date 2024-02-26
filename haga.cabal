@@ -21,21 +21,24 @@ build-type:          Simple
 
 library
   build-depends:       base
+                     , bytestring
                      , cassava
                      , containers
                      , extra
-                     , MonadRandom
+                     , hint
                      , monad-loops
+                     , MonadRandom
+                     , mwc-random
                      , optparse-applicative
+                     , path
                      , pipes
+                     , primitive
                      , protolude
                      , QuickCheck
                      , quickcheck-instances
                      , random
                      , random-fu
                      , random-shuffle
-                     , mwc-random
-                     , primitive
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
@@ -49,21 +52,24 @@ library
 
 executable haga
   build-depends:       base
+                     , bytestring
                      , cassava
                      , containers
                      , extra
-                     , MonadRandom
+                     , hint
                      , monad-loops
+                     , MonadRandom
+                     , mwc-random
                      , optparse-applicative
+                     , path
                      , pipes
+                     , primitive
                      , protolude
                      , QuickCheck
                      , quickcheck-instances
                      , random
                      , random-fu
                      , random-shuffle
-                     , mwc-random
-                     , primitive
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
@@ -78,22 +84,25 @@ executable haga
 
 executable haga-test
   build-depends:       base
+                     , bytestring
+                     , Cabal
                      , cassava
                      , containers
-                     , Cabal
                      , extra
-                     , MonadRandom
+                     , hint
                      , monad-loops
+                     , MonadRandom
+                     , mwc-random
                      , optparse-applicative
+                     , path
                      , pipes
+                     , primitive
                      , protolude
                      , QuickCheck
                      , quickcheck-instances
                      , random
                      , random-fu
                      , random-shuffle
-                     , mwc-random
-                     , primitive
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
