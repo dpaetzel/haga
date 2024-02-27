@@ -5,12 +5,15 @@
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 
 module LambdaCalculus where
 
 import Data.Dynamic
 import Data.List (foldr1, last, lookup, zipWith3, (!!), (\\))
 import Data.List.Extra (delete, nubOrd, nubOrdOn)
+import Data.Tuple.Extra
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import Data.Maybe
@@ -242,7 +245,6 @@ genLambdaVar' tr varType varNumber trs env@(LambdaEnviroment functions constants
       ret <- genLambdaVar' rest varType varNumber (trs ++ [newTypeRequ]) env depthLeft target boundVar
       return ret
 
-
 instance Environment TypeRequester LambdaEnviroment where
   new env@(LambdaEnviroment _ _ target maxDepth _) = do
     tr <- genTypeRequester env maxDepth target []
@@ -254,6 +256,8 @@ instance Environment TypeRequester LambdaEnviroment where
     let (depthAt,(TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
     res <- genTypeRequester env depthAt trep bound
     return $ replaceAtR selectedTR tr res
+
+  nX _ = 3 --todo!
 
   crossover1 env@(LambdaEnviroment _ _ _ maxDepth _) tr1 tr2 = do
     return Nothing
@@ -278,18 +282,21 @@ instance Evaluator TypeRequester LamdaExecutionEnv where
 evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, R)]
 evalResults ex trs = mapM (evalResult ex) trs
 
-data IrisClass = Setosa | Virginica | Versicolor
+data IrisClass = Setosa | Virginica | Versicolor deriving (Eq, Generic, Show)
+
+instance FromRecord IrisClass
+instance ToRecord IrisClass
 
 evalResult :: LamdaExecutionEnv -> TypeRequester -> Hint.InterpreterT IO (TypeRequester, R)
 evalResult ex tr = do
   Hint.loadModules (map show (imports ex))
   result <- Hint.interpret (show (toLambdaExpressionS tr)) (Hint.as ::R -> R -> R -> IrisClass)
   csv <- liftIO $ B.readFile (trainingDataset ex)
-  let recs = toList $ fromRight undefined $ decode NoHeader csv
-  let res = map (show (uncurry result)) recs
+  let recs = (toList $ fromRight undefined $ decode NoHeader csv) :: [(R,R,R)]
+  let res = map ((uncurry3 result)) recs
   csvRes <- liftIO $ B.readFile (trainingDatasetRes ex)
-  let recsRes = toList $ fromRight undefined $ decode NoHeader csvRes
-  let score = (foldr (\ts s -> if fst ts == snd ts then s + 1 else s - 1) 0 (zip recsRes res)) :: R
+  let recsRes = (toList $ fromRight undefined $ decode NoHeader csvRes) :: [IrisClass]
+  let score = (foldr (\ts s -> if (fst ts) == (snd ts) then s + 1 else s - 1) 0 (zip recsRes res)) :: R
   return (tr, score)
 
 

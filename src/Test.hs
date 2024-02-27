@@ -24,9 +24,9 @@ main = do
   --_ <- putStrLn $ ((show (typeRepArgs (Ref.SomeTypeRep (Ref.TypeRep @(Int -> Int -> Int -> Text))))) :: Text)
   --_ <- putStrLn $ ((show (typeRepArgs (Ref.SomeTypeRep (Ref.TypeRep @(Text))))) :: Text)
   mwc <- createSystemRandom
-  r <- sampleFrom mwc $ LambdaCalculus.new LambdaCalculus.exampleLE
+  r <- sampleFrom mwc $ GA.new LambdaCalculus.exampleLE
   _ <- putStrLn $ LambdaCalculus.toLambdaExpressionS $ r
-  r <- sampleFrom mwc $ LambdaCalculus.new LambdaCalculus.exampleLE
+  r <- sampleFrom mwc $ GA.new LambdaCalculus.exampleLE
   _ <- putStrLn $ LambdaCalculus.toLambdaExpressionS $ r
   --_ <- putStrLn (LambdaCalculus.toLambdaExpressionShort LambdaCalculus.testIntToClassCorrect)
   --_ <- putStrLn $ ((show (LambdaCalculus.res 1)) :: Text)

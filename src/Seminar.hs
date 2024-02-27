@@ -116,6 +116,8 @@ instance Environment Assignment AssignmentEnviroment where
     mixedAssignables <- shuffle paddedAssignables
     return $ zip paddedPersons mixedAssignables
 
+  nX _ = 1
+
   mutate _ assignment = do
     x <- uniform 0 (length assignment - 1)
     y <- uniform 0 (length assignment - 1)
