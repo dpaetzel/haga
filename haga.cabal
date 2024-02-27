@@ -42,13 +42,14 @@ library
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts -O2
   hs-source-dirs:      src
   exposed-modules:     GA
                      , Seminar
                      , Pretty
                      , Szenario191
                      , LambdaCalculus
+                     , IrisDataset
 
 executable haga
   build-depends:       base
@@ -73,7 +74,7 @@ executable haga
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts -O2
   hs-source-dirs:      src
   main-is:             Main.hs
   other-modules:       GA
@@ -81,6 +82,7 @@ executable haga
                      , Pretty
                      , Szenario191
                      , LambdaCalculus
+                     , IrisDataset
 
 executable haga-test
   build-depends:       base
@@ -106,7 +108,7 @@ executable haga-test
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts -O2
   hs-source-dirs:      src
   main-is:             Test.hs
   other-modules:       GA
@@ -114,3 +116,4 @@ executable haga-test
                      , Pretty
                      , Szenario191
                      , LambdaCalculus
+                     , IrisDataset

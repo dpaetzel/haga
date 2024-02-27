@@ -31,7 +31,7 @@ import Data.Random
 import Pipes
 import Pretty
 import Protolude
-import System.Random.MWC (create)
+import System.Random.MWC (create, createSystemRandom)
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Monadic
@@ -211,7 +211,7 @@ run ::
   Termination i ->
   Producer (Int, R) IO (Population i)
 run eval env selectionType nParents pElite nPop term = do
-  mwc <- liftIO create
+  mwc <- liftIO createSystemRandom
   let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
   firstPop <- liftIO $ smpl $ (population env nPop)
   _ <- liftIO $ putText $ pretty $ NE.head firstPop

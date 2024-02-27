@@ -31,7 +31,7 @@ options =
       ( long "population-size"
           <> short 'p'
           <> metavar "N"
-          <> value 100
+          <> value 1000
           <> help "Population size"
       )
 
@@ -49,8 +49,8 @@ main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
     let env = AssignmentEnviroment (students prios, topics prios)
-    let selType = Tournament 2
-    let run' = run prios env selType 2 (5 / 100) (populationSize opts) (steps (iterations opts)) :: Producer (Int, R) IO (Population Assignment)
+    let selType = Tournament 20
+    let run' = run prios env selType 20 (5 / 100) (populationSize opts) (steps (iterations opts)) :: Producer (Int, R) IO (Population Assignment)
     pop' <-
       runEffect (for run' logCsv)
     let (res, _) = bests prios 5 pop'
