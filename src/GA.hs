@@ -35,6 +35,7 @@ import System.Random.MWC (create, createSystemRandom)
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Monadic
+import Debug.Trace as DB
 
 -- TODO there should be a few 'shuffle's here
 
@@ -170,7 +171,7 @@ reproduce ::
   Population i ->
   RVar (Population i)
 reproduce eval env selectT nParents pop = do
-  iParents <- select selectT nParents pop eval
+  iParents <-select selectT nParents pop eval
   iChildren <- NE.filter (`notElem` pop) <$> children env iParents
   let pop' = pop `NE.appendl` iChildren
   return pop'
@@ -214,13 +215,10 @@ run eval env selectionType nParents pElite nPop term = do
   mwc <- liftIO createSystemRandom
   let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
   firstPop <- liftIO $ smpl $ (population env nPop)
-  _ <- liftIO $ putText $ pretty $ NE.head firstPop
-  firstPop <- liftIO $ smpl $ (population env nPop)
-  _ <- liftIO $ putText $ pretty $ NE.head firstPop
   res <- runIter eval 0 firstPop smpl
   return res
   where
-    runIter eval count pop smpl =
+    runIter eval count pop smpl = (
       if term pop count
         then do
           return pop
@@ -232,7 +230,7 @@ run eval env selectionType nParents pElite nPop term = do
           let fBest = fitness eval $ NE.head $ fst $ bests eval 1 resPop
           Pipes.yield (count, fBest)
           res <- runIter eval (count + 1) resPop smpl
-          return res
+          return res)
 
 -- * Selection mechanisms
 

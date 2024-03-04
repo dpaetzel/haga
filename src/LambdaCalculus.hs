@@ -62,21 +62,22 @@ exampleLE =
       weights =
         ExpressionWeights
           { lambdaSpucker = 1,
-            lambdaSchlucker = 1,
-            symbol = 1,
-            variable = 1,
-            constant = 1
+            lambdaSchlucker = 2,
+            symbol = 2,
+            variable = 10,
+            constant = 2
           }
     }
 
 type BoundVars = [TypeRep]
+
 
 -- we need a dynamic typ with a concept of equality here, should we want to interpret the result, instead of compiling it...
 type ConVal = Text
 
 -- LambdaSpucker - adds TypeRequester#1 as bound var and returns the result of TypeRequester#2
 
-data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq, Ord)
+data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq, Ord, Show)
 
 asList :: LambdaExpression -> [TypeRequester]
 asList (LambdaSpucker tr1 tr2 _) = [tr1, tr2]
@@ -85,7 +86,7 @@ asList (Symbol _ trs _) = trs
 asList (Var _ _ trs _) = trs
 asList (Constan _) = []
 
-data TypeRequester = TR TypeRep (Maybe LambdaExpression) BoundVars deriving (Eq, Ord)
+data TypeRequester = TR TypeRep (Maybe LambdaExpression) BoundVars deriving (Eq, Ord, Show)
 
 toLambdaExpressionS :: TypeRequester -> Text
 toLambdaExpressionS (TR typeRep (Just lambdaExpression) boundVars) = "((" <> eToLambdaExpressionS lambdaExpression <> ") :: (" <> show typeRep <> "))"
@@ -163,7 +164,7 @@ doTypesMatch toGen available = elem toGen (available : (repeatedly (lastMay . ty
 
 genLambdaSpucker :: LambdaEnviroment -> Int -> TypeRep -> BoundVars -> RVar LambdaExpression
 genLambdaSpucker env@(LambdaEnviroment functions constants _ _ weights) depthLeft target boundVar = do
-  lamdaTypeLength <- uniform 1 3
+  lamdaTypeLength <- uniform 1 4
   lambaTypes <- replicateM lamdaTypeLength (randomElement (Map.keys constants))
   let lambaType = foldr1 mkFunTy lambaTypes
   lamdaVarTypeRequester <- genTypeRequester env depthLeft lambaType boundVar
@@ -260,7 +261,7 @@ instance Environment TypeRequester LambdaEnviroment where
 -- findIndicesWhere' (tr:trs) f indx = (findIndicesWhere tr f indx) ++ (findIndicesWhere' trs f (indx + countTrsR tr))
 
 replaceAtR :: Int -> TypeRequester -> TypeRequester -> TypeRequester
-replaceAtR 0 _ with = with
+replaceAtR 1 _ with = with
 replaceAtR i (TR tm (Just le) bV) with = TR tm (Just (replaceAt (i - 1) le with)) bV
 replaceAtR _ (TR _ Nothing _) _ = undefined
 
@@ -276,7 +277,7 @@ replaceInSubtreeWithIndex indexLeft (tr : trs) with = if countTrsR tr >= indexLe
 replaceInSubtreeWithIndex _ [] _ = undefined
 
 depthLeftAndTypeAtR :: TypeRequester -> Int -> Int -> (Int, TypeRequester)
-depthLeftAndTypeAtR t 0 depthLeft = ((depthLeft - 1), t)
+depthLeftAndTypeAtR t 1 depthLeft = ((depthLeft - 1), t)
 depthLeftAndTypeAtR (TR _ (Just le) _) indexLeft depthLeft = depthLeftAndTypeAt le (indexLeft - 1) (depthLeft - 1)
 depthLeftAndTypeAtR (TR _ Nothing _) indexLeft depthLeft = undefined
 
@@ -458,7 +459,7 @@ toLambdaExpressionShort (TR _ (Nothing) _) = "Invalid Lambda Epr"
 
 eToLambdaExpressionShort :: LambdaExpression -> Text
 eToLambdaExpressionShort (LambdaSpucker typeRequester1 typeRequester2 boundVars) = "(\\l" <> showSanifid (last boundVars) <> show (count boundVars (last boundVars) - 1) <> " -> " <> toLambdaExpressionShort typeRequester2 <> ") " <> toLambdaExpressionShort typeRequester1
-eToLambdaExpressionShort (LambdaSchlucker typeRequester boundVars) = "()\\l" <> showSanifid (last boundVars) <> show (count boundVars (last boundVars) - 1) <> " -> " <> toLambdaExpressionShort typeRequester <> ")"
+eToLambdaExpressionShort (LambdaSchlucker typeRequester boundVars) = "(\\l" <> showSanifid (last boundVars) <> show (count boundVars (last boundVars) - 1) <> " -> " <> toLambdaExpressionShort typeRequester <> ")"
 eToLambdaExpressionShort (Symbol (valS) typeRequesters _) = valS <> " " <> (unwords (map toLambdaExpressionShort typeRequesters))
 eToLambdaExpressionShort (Var typeRep int typeRequesters _) = "l" <> showSanifid typeRep <> show int <> " " <> (unwords (map toLambdaExpressionShort typeRequesters))
 eToLambdaExpressionShort (Constan (valS)) = valS

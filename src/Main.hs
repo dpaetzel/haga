@@ -8,7 +8,8 @@ import Pretty
 import Protolude hiding (for)
 import System.IO
 -- import Szenario212Pun
-import Szenario191
+-- import Szenario191
+import IrisDataset
 
 data Options = Options
   { iterations :: !N,
@@ -48,16 +49,18 @@ main :: IO ()
 main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
-    let env = AssignmentEnviroment (students prios, topics prios)
-    let selType = Tournament 20
-    let run' = run prios env selType 20 (5 / 100) (populationSize opts) (steps (iterations opts)) :: Producer (Int, R) IO (Population Assignment)
+    let env = irisLE
+    let selType = Tournament 3
+    let run' = run irisLEE env selType 40 (5 / 100) (populationSize opts) (steps (iterations opts)) :: Producer (Int, R) IO (Population TypeRequester)
     pop' <-
       runEffect (for run' logCsv)
-    let (res, _) = bests prios 5 pop'
-    mapM_ format res
+
+    irisLE <- calc irisLEE  pop'
+    let (res, _) = bests irisLE 5 pop'
+    mapM_ (format irisLE) res
   where
-    format s = do
-      let f = fitness prios s
+    format irisL s = do
+      let f = fitness irisL s
       putErrText $ show f <> "\n" <> pretty s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f
