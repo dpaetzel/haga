@@ -20,7 +20,7 @@
 -- In order to use it for a certain problem, basically, you have to make your
 -- solution type an instance of 'Individual' and then simply call the 'run'
 -- function.
-module GA (Environment, new, population, mutate, crossover1, crossover, nX, Evaluator, fitness, calc, Individual, GA.run, Tournament (..), N, R, Population, steps, bests, runTests) where
+module GA (Environment, new, population, mutate, crossover1, crossover, nX, Fitness, getR, Evaluator, fitness,fitness', calc, Individual, GA.run, Tournament (..), N, R, Population, steps, bests, runTests) where
 
 import Control.Arrow hiding (first, second)
 import Data.List.NonEmpty ((<|))
@@ -35,7 +35,6 @@ import System.Random.MWC (create, createSystemRandom)
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Monadic
-import Debug.Trace as DB
 
 -- TODO there should be a few 'shuffle's here
 
@@ -84,13 +83,16 @@ class (Pretty e, Individual i) => Environment i e | e -> i where
 -- |
 --  An Evaluator that Individuals of type i can be evaluated by
 --  It stores all information required to evaluate an individuals fitness
-class (Individual i) => Evaluator i e where
+class (Individual i, Fitness r) => Evaluator i e r | i -> e r where
   -- |
   --  An individual's fitness. Higher values are considered “better”.
   --
   --  We explicitely allow fitness values to be have any sign (see, for example,
   --  'proportionate1').
   fitness :: e -> i -> R
+  fitness env i = getR ( fitness' env i)
+
+  fitness' :: e -> i -> r
 
   -- TODO kinda hacky?!?
   calc :: e -> Population i -> IO e
@@ -98,6 +100,12 @@ class (Individual i) => Evaluator i e where
     return eval
 
 class (Pretty i, Ord i) => Individual i
+
+class (Show i) => Fitness i where
+  getR :: i -> R
+
+instance Fitness Double where
+  getR d = d
 
 -- |
 -- Populations are just basic non-empty lists.
@@ -150,18 +158,18 @@ bestsBy' k f pop
 
 -- |
 -- The @k@ worst individuals in the population (and the rest of the population).
-worst :: (Individual i, Evaluator i e) => e -> N -> Population i -> (NonEmpty i, [i])
+worst :: (Individual i, Evaluator i e r) => e -> N -> Population i -> (NonEmpty i, [i])
 worst e k = bestsBy k (negate . fitness e)
 
 -- |
 -- The @k@ best individuals in the population (and the rest of the population).
-bests :: (Individual i, Evaluator i e) => e -> N -> Population i -> (NonEmpty i, [i])
+bests :: (Individual i, Evaluator i e r) => e -> N -> Population i -> (NonEmpty i, [i])
 bests e k = bestsBy k (fitness e)
 
 -- TODO add top x percent parent selection (select n guys, sort by fitness first)
 
 reproduce ::
-  (Individual i, Environment i env, Evaluator i eval, SelectionType s) =>
+  (Individual i, Environment i env, Evaluator i eval r, SelectionType s) =>
   eval ->
   env ->
   -- | Mechanism for selecting parents
@@ -177,7 +185,7 @@ reproduce eval env selectT nParents pop = do
   return pop'
 
 selectBest ::
-  (Individual i, Evaluator i eval) =>
+  (Individual i, Evaluator i eval r) =>
   eval ->
   -- | Elitism ratio @pElite@
   R ->
@@ -198,7 +206,7 @@ selectBest eval pElite pop nPop = do
         else return $ elitists <> (fst $ bests eval (nPop - length elitists) (NE.fromList rest))
 
 run ::
-  (Individual i, Evaluator i eval, Environment i env, SelectionType s) =>
+  (Individual i, Evaluator i eval r, Environment i env, SelectionType s) =>
   eval ->
   env ->
   -- | Mechanism for selecting parents
@@ -210,7 +218,7 @@ run ::
   -- | Population size
   N ->
   Termination i ->
-  Producer (Int, R) IO (Population i)
+  Producer (Int, r) IO (Population i)
 run eval env selectionType nParents pElite nPop term = do
   mwc <- liftIO createSystemRandom
   let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
@@ -227,7 +235,7 @@ run eval env selectionType nParents pElite nPop term = do
           withKids <- liftIO $ smpl $ reproduce eval env selectionType nParents pop
           eval <- liftIO $ calc eval withKids
           resPop <- liftIO $ smpl $ selectBest eval pElite withKids nPop
-          let fBest = fitness eval $ NE.head $ fst $ bests eval 1 resPop
+          let fBest = fitness' eval $ NE.head $ fst $ bests eval 1 resPop
           Pipes.yield (count, fBest)
           res <- runIter eval (count + 1) resPop smpl
           return res)
@@ -240,7 +248,7 @@ run eval env selectionType nParents pElite nPop term = do
 data Tournament = Tournament N
 
 class SelectionType t where
-  select :: (Individual i, Evaluator i e) => t -> N -> Population i -> e -> RVar (NonEmpty i)
+  select :: (Individual i, Evaluator i e r) => t -> N -> Population i -> e -> RVar (NonEmpty i)
 
 -- type Selection m i = N -> Population i -> m (NonEmpty i)
 
@@ -250,7 +258,7 @@ instance SelectionType Tournament where
 -- |
 -- Selects one individual from the population using tournament selection.
 tournament1 ::
-  (Individual i, Evaluator i e) =>
+  (Individual i, Evaluator i e r) =>
   e ->
   -- | Tournament size
   N ->
@@ -321,7 +329,7 @@ instance Environment Integer IntTestEnviroment where
 
 data NoData = NoData deriving (Eq)
 
-instance Evaluator Integer NoData where
+instance Evaluator Integer NoData Double where
   fitness _ = fromIntegral . negate
 
 prop_children_asManyAsParents ::

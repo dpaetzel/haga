@@ -159,8 +159,8 @@ prioOf' p (Just _) Nothing = lowestPriority p + 2
 prioOf' p Nothing (Just _) = lowestPriority p + 2
 prioOf' p (Just s) (Just t) = prioOf p s t
 
-instance Evaluator Assignment Priorities where
-  fitness prio assment =
+instance Evaluator Assignment Priorities R where
+  fitness' prio assment =
     negate . sum $ fromIntegral . uncurry (prioOf' prio) <$> assment
 
 -- |

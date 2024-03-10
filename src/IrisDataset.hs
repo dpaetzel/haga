@@ -391,11 +391,25 @@ data LamdaExecutionEnv = LamdaExecutionEnv
     trainingData :: ([(Float, Float, Float, Float)], [IrisClass]),
     exTargetType :: TypeRep,
     -- todo: kindaHacky
-    results :: Map TypeRequester R
+    results :: Map TypeRequester FittnesRes
   }
 
-instance Evaluator TypeRequester LamdaExecutionEnv where
-  fitness env tr = (results env) Map.! tr
+data FittnesRes = FittnesRes
+  { total :: R,
+    fitnessTotal :: R,
+    fitnessGeoMean :: R,
+    fitnessMean :: R,
+    accuracy :: Int,
+    biasDist :: R,
+    biasSize :: R
+  }
+  deriving (Show)
+
+instance Fitness FittnesRes where
+  getR = total
+
+instance Evaluator TypeRequester LamdaExecutionEnv FittnesRes where
+  fitness' env tr = (results env) Map.! tr
 
   calc env pop = do
     let toAdd = NE.filter (\k -> not (Map.member k (results env))) pop
@@ -417,22 +431,64 @@ loadTrainingData lee@LamdaExecutionEnv {trainingData = (_ : _, _ : _)} = return 
 loadTrainingData lee@LamdaExecutionEnv {trainingData = (_ : _, [])} = return undefined
 loadTrainingData lee@LamdaExecutionEnv {trainingData = ([], _ : _)} = return undefined
 
-evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, R)]
+evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, FittnesRes)]
 evalResults ex trs = mapM (evalResult ex) trs
 
-evalResult :: LamdaExecutionEnv -> TypeRequester -> Hint.InterpreterT IO (TypeRequester, R)
+evalResult :: LamdaExecutionEnv -> TypeRequester -> Hint.InterpreterT IO (TypeRequester, FittnesRes)
 evalResult ex tr = do
   Hint.setImports $ (map T.unpack (imports ex)) ++ ["Protolude"]
   Hint.unsafeSetGhcOption "-O2"
   result <- Hint.interpret (T.unpack (toLambdaExpressionS tr)) (Hint.as :: Float -> Float -> Float -> Float -> IrisClass)
-  let res = map (\(a,b,c,d) -> result a b c d) (fst (trainingData ex))
+  let res = map (\(a, b, c, d) -> result a b c d) (fst (trainingData ex))
   let resAndTarget = (zip (snd (trainingData ex)) res)
-  let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) :: R
-  let biasWellDistributed = (foldr (*) 1 (map (\ty -> (foldr (\ts s -> if ((snd ts) == ty) then s + 1 else s) 1 resAndTarget)) ([minBound..maxBound] :: [IrisClass]):: [R])) ** (1/3)
-  let biasSmall = exp ( - (fromIntegral (countTrsR tr)))
-  let score = acc + (biasWellDistributed/5.1) + (biasSmall)
-  return (tr, score)
+  let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) :: Int
+  let biasWellDistributed = (foldr (*) 1 (map (\ty -> (foldr (\ts s -> if ((snd ts) == ty) then s + 1 else s) 1 resAndTarget)) ([minBound .. maxBound] :: [IrisClass]) :: [R])) ** (1 / 3) -- 1 (schlecht) bis 51 (gut)
+  let biasSmall = exp (-(fromIntegral (countTrsR tr))) -- 0 (schlecht) bis 1 (gut)
+  let fitness' = mean [meanOfAccuricyPerClass resAndTarget, geomeanOfDistributionAccuracy resAndTarget]
+  let score = fitness' + (biasSmall - 1)
+  return
+    ( tr,
+      FittnesRes
+        { total = score,
+          fitnessTotal = fitness',
+          fitnessMean = meanOfAccuricyPerClass resAndTarget,
+          fitnessGeoMean = geomeanOfDistributionAccuracy resAndTarget,
+          accuracy = acc,
+          biasDist = biasWellDistributed,
+          biasSize = biasSmall
+        }
+    )
 
 if' :: Bool -> a -> a -> a
 if' True e _ = e
 if' False _ e = e
+
+meanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
+meanOfAccuricyPerClass results = mean $ map (accuracyInClass results) [minBound .. maxBound]
+
+geomeanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
+geomeanOfAccuricyPerClass results = geomean $ map (accuracyInClass results) [minBound .. maxBound]
+
+geomeanOfDistributionAccuracy :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
+geomeanOfDistributionAccuracy results = geomean $ map (distributionAccuracyForClass results) [minBound .. maxBound]
+
+distributionAccuracyForClass :: (Eq r) => [(r, r)] -> r -> R
+distributionAccuracyForClass results clas = (1 - (min 1 (fromIntegral (abs ((length (inResClass results clas)) - (length (inClass results clas)))) / fromIntegral (length (inClass results clas))))) * 100
+
+mean :: (Show f, Floating f) => [f] -> f
+mean values = (sum values) * (1 / (fromIntegral (length values)))
+
+geomean :: (Show f, Floating f) => [f] -> f
+geomean values = (product values) ** (1 / (fromIntegral (length values)))
+
+accuracyInClass :: (Eq r) => [(r, r)] -> r -> R
+accuracyInClass results clas = ((accuracy'(inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
+
+inClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
+inClass results clas = (filter ((clas ==) . fst) results)
+
+inResClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
+inResClass results clas = (filter ((clas ==) . snd) results)
+
+accuracy' :: (Eq r) => [(r, r)] -> R
+accuracy' results = fromIntegral $ length (filter (\(target, res) -> (res == target)) results)

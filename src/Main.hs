@@ -51,7 +51,7 @@ main =
     hSetBuffering stdout NoBuffering
     let env = irisLE
     let selType = Tournament 3
-    let run' = run irisLEE env selType 40 (5 / 100) (populationSize opts) (steps (iterations opts)) :: Producer (Int, R) IO (Population TypeRequester)
+    let run' = run irisLEE env selType 40 (5 / 100) (populationSize opts) (steps (iterations opts))
     pop' <-
       runEffect (for run' logCsv)
 
@@ -60,7 +60,7 @@ main =
     mapM_ (format irisLE) res
   where
     format irisL s = do
-      let f = fitness irisL s
+      let f = fitness' irisL s
       putErrText $ show f <> "\n" <> pretty s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f
