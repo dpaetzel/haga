@@ -50,6 +50,7 @@ library
                      , Szenario191
                      , LambdaCalculus
                      , IrisDataset
+                     , IrisData
 
 executable haga
   build-depends:       base
@@ -83,6 +84,7 @@ executable haga
                      , Szenario191
                      , LambdaCalculus
                      , IrisDataset
+                     , IrisData
 
 executable haga-test
   build-depends:       base
@@ -117,3 +119,4 @@ executable haga-test
                      , Szenario191
                      , LambdaCalculus
                      , IrisDataset
+                     , IrisData

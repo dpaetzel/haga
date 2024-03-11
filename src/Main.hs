@@ -32,7 +32,7 @@ options =
       ( long "population-size"
           <> short 'p'
           <> metavar "N"
-          <> value 1000
+          <> value 50
           <> help "Population size"
       )
 

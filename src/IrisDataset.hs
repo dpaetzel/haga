@@ -7,6 +7,7 @@
 module IrisDataset
   ( module LambdaCalculus,
     module IrisDataset,
+    module IrisData,
     module GA,
   )
 where
@@ -22,16 +23,11 @@ import Data.Tuple.Extra
 import qualified Debug.Trace as DB
 import GA
 import LambdaCalculus
+import IrisData
 import qualified Language.Haskell.Interpreter as Hint
 import qualified Language.Haskell.Interpreter.Unsafe as Hint
 import Protolude
 import qualified Type.Reflection as Ref
-
-data IrisClass = Setosa | Virginica | Versicolor deriving (Eq, Generic, Show, Enum, Bounded)
-
-instance FromRecord IrisClass
-
-instance ToRecord IrisClass
 
 irisLE :: LambdaEnviroment
 irisLE =
@@ -73,308 +69,8 @@ irisLEE =
       -- Path to a CSV file containing the dataset results
       trainingDatasetRes = "./res.csv",
       trainingData =
-        ( [ (5.1, 3.5, 1.4, 0.2),
-            (4.9, 3.0, 1.4, 0.2),
-            (4.7, 3.2, 1.3, 0.2),
-            (4.6, 3.1, 1.5, 0.2),
-            (5.0, 3.6, 1.4, 0.2),
-            (5.4, 3.9, 1.7, 0.4),
-            (4.6, 3.4, 1.4, 0.3),
-            (5.0, 3.4, 1.5, 0.2),
-            (4.4, 2.9, 1.4, 0.2),
-            (4.9, 3.1, 1.5, 0.1),
-            (5.4, 3.7, 1.5, 0.2),
-            (4.8, 3.4, 1.6, 0.2),
-            (4.8, 3.0, 1.4, 0.1),
-            (4.3, 3.0, 1.1, 0.1),
-            (5.8, 4.0, 1.2, 0.2),
-            (5.7, 4.4, 1.5, 0.4),
-            (5.4, 3.9, 1.3, 0.4),
-            (5.1, 3.5, 1.4, 0.3),
-            (5.7, 3.8, 1.7, 0.3),
-            (5.1, 3.8, 1.5, 0.3),
-            (5.4, 3.4, 1.7, 0.2),
-            (5.1, 3.7, 1.5, 0.4),
-            (4.6, 3.6, 1.0, 0.2),
-            (5.1, 3.3, 1.7, 0.5),
-            (4.8, 3.4, 1.9, 0.2),
-            (5.0, 3.0, 1.6, 0.2),
-            (5.0, 3.4, 1.6, 0.4),
-            (5.2, 3.5, 1.5, 0.2),
-            (5.2, 3.4, 1.4, 0.2),
-            (4.7, 3.2, 1.6, 0.2),
-            (4.8, 3.1, 1.6, 0.2),
-            (5.4, 3.4, 1.5, 0.4),
-            (5.2, 4.1, 1.5, 0.1),
-            (5.5, 4.2, 1.4, 0.2),
-            (4.9, 3.1, 1.5, 0.1),
-            (5.0, 3.2, 1.2, 0.2),
-            (5.5, 3.5, 1.3, 0.2),
-            (4.9, 3.1, 1.5, 0.1),
-            (4.4, 3.0, 1.3, 0.2),
-            (5.1, 3.4, 1.5, 0.2),
-            (5.0, 3.5, 1.3, 0.3),
-            (4.5, 2.3, 1.3, 0.3),
-            (4.4, 3.2, 1.3, 0.2),
-            (5.0, 3.5, 1.6, 0.6),
-            (5.1, 3.8, 1.9, 0.4),
-            (4.8, 3.0, 1.4, 0.3),
-            (5.1, 3.8, 1.6, 0.2),
-            (4.6, 3.2, 1.4, 0.2),
-            (5.3, 3.7, 1.5, 0.2),
-            (5.0, 3.3, 1.4, 0.2),
-            (7.0, 3.2, 4.7, 1.4),
-            (6.4, 3.2, 4.5, 1.5),
-            (6.9, 3.1, 4.9, 1.5),
-            (5.5, 2.3, 4.0, 1.3),
-            (6.5, 2.8, 4.6, 1.5),
-            (5.7, 2.8, 4.5, 1.3),
-            (6.3, 3.3, 4.7, 1.6),
-            (4.9, 2.4, 3.3, 1.0),
-            (6.6, 2.9, 4.6, 1.3),
-            (5.2, 2.7, 3.9, 1.4),
-            (5.0, 2.0, 3.5, 1.0),
-            (5.9, 3.0, 4.2, 1.5),
-            (6.0, 2.2, 4.0, 1.0),
-            (6.1, 2.9, 4.7, 1.4),
-            (5.6, 2.9, 3.6, 1.3),
-            (6.7, 3.1, 4.4, 1.4),
-            (5.6, 3.0, 4.5, 1.5),
-            (5.8, 2.7, 4.1, 1.0),
-            (6.2, 2.2, 4.5, 1.5),
-            (5.6, 2.5, 3.9, 1.1),
-            (5.9, 3.2, 4.8, 1.8),
-            (6.1, 2.8, 4.0, 1.3),
-            (6.3, 2.5, 4.9, 1.5),
-            (6.1, 2.8, 4.7, 1.2),
-            (6.4, 2.9, 4.3, 1.3),
-            (6.6, 3.0, 4.4, 1.4),
-            (6.8, 2.8, 4.8, 1.4),
-            (6.7, 3.0, 5.0, 1.7),
-            (6.0, 2.9, 4.5, 1.5),
-            (5.7, 2.6, 3.5, 1.0),
-            (5.5, 2.4, 3.8, 1.1),
-            (5.5, 2.4, 3.7, 1.0),
-            (5.8, 2.7, 3.9, 1.2),
-            (6.0, 2.7, 5.1, 1.6),
-            (5.4, 3.0, 4.5, 1.5),
-            (6.0, 3.4, 4.5, 1.6),
-            (6.7, 3.1, 4.7, 1.5),
-            (6.3, 2.3, 4.4, 1.3),
-            (5.6, 3.0, 4.1, 1.3),
-            (5.5, 2.5, 4.0, 1.3),
-            (5.5, 2.6, 4.4, 1.2),
-            (6.1, 3.0, 4.6, 1.4),
-            (5.8, 2.6, 4.0, 1.2),
-            (5.0, 2.3, 3.3, 1.0),
-            (5.6, 2.7, 4.2, 1.3),
-            (5.7, 3.0, 4.2, 1.2),
-            (5.7, 2.9, 4.2, 1.3),
-            (6.2, 2.9, 4.3, 1.3),
-            (5.1, 2.5, 3.0, 1.1),
-            (5.7, 2.8, 4.1, 1.3),
-            (6.3, 3.3, 6.0, 2.5),
-            (5.8, 2.7, 5.1, 1.9),
-            (7.1, 3.0, 5.9, 2.1),
-            (6.3, 2.9, 5.6, 1.8),
-            (6.5, 3.0, 5.8, 2.2),
-            (7.6, 3.0, 6.6, 2.1),
-            (4.9, 2.5, 4.5, 1.7),
-            (7.3, 2.9, 6.3, 1.8),
-            (6.7, 2.5, 5.8, 1.8),
-            (7.2, 3.6, 6.1, 2.5),
-            (6.5, 3.2, 5.1, 2.0),
-            (6.4, 2.7, 5.3, 1.9),
-            (6.8, 3.0, 5.5, 2.1),
-            (5.7, 2.5, 5.0, 2.0),
-            (5.8, 2.8, 5.1, 2.4),
-            (6.4, 3.2, 5.3, 2.3),
-            (6.5, 3.0, 5.5, 1.8),
-            (7.7, 3.8, 6.7, 2.2),
-            (7.7, 2.6, 6.9, 2.3),
-            (6.0, 2.2, 5.0, 1.5),
-            (6.9, 3.2, 5.7, 2.3),
-            (5.6, 2.8, 4.9, 2.0),
-            (7.7, 2.8, 6.7, 2.0),
-            (6.3, 2.7, 4.9, 1.8),
-            (6.7, 3.3, 5.7, 2.1),
-            (7.2, 3.2, 6.0, 1.8),
-            (6.2, 2.8, 4.8, 1.8),
-            (6.1, 3.0, 4.9, 1.8),
-            (6.4, 2.8, 5.6, 2.1),
-            (7.2, 3.0, 5.8, 1.6),
-            (7.4, 2.8, 6.1, 1.9),
-            (7.9, 3.8, 6.4, 2.0),
-            (6.4, 2.8, 5.6, 2.2),
-            (6.3, 2.8, 5.1, 1.5),
-            (6.1, 2.6, 5.6, 1.4),
-            (7.7, 3.0, 6.1, 2.3),
-            (6.3, 3.4, 5.6, 2.4),
-            (6.4, 3.1, 5.5, 1.8),
-            (6.0, 3.0, 4.8, 1.8),
-            (6.9, 3.1, 5.4, 2.1),
-            (6.7, 3.1, 5.6, 2.4),
-            (6.9, 3.1, 5.1, 2.3),
-            (5.8, 2.7, 5.1, 1.9),
-            (6.8, 3.2, 5.9, 2.3),
-            (6.7, 3.3, 5.7, 2.5),
-            (6.7, 3.0, 5.2, 2.3),
-            (6.3, 2.5, 5.0, 1.9),
-            (6.5, 3.0, 5.2, 2.0),
-            (6.2, 3.4, 5.4, 2.3),
-            (5.9, 3.0, 5.1, 1.8)
-          ],
-          [ Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Setosa,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Versicolor,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica,
-            Virginica
-          ]
+        ( map fst irisTrainingData,
+          map snd irisTrainingData
         ),
       exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Float -> Float -> Float -> Float -> IrisClass))),
       -- todo: kindaHacky
@@ -413,23 +109,11 @@ instance Evaluator TypeRequester LamdaExecutionEnv FittnesRes where
 
   calc env pop = do
     let toAdd = NE.filter (\k -> not (Map.member k (results env))) pop
-    env <- loadTrainingData env
     toInsert <- Hint.runInterpreter (evalResults env toAdd)
     let insertPair (key, val) m = Map.insert key val m
     let res = foldr insertPair (results env) (fromRight undefined toInsert)
     return env {results = res}
 
-loadTrainingData :: LamdaExecutionEnv -> IO LamdaExecutionEnv
-loadTrainingData ex@LamdaExecutionEnv {trainingData = ([], [])} = do
-  csv <- B.readFile (trainingDataset ex)
-  let dat = (toList $ fromRight undefined $ decode NoHeader csv) :: [(Float, Float, Float, Float)]
-  csvRes <- B.readFile (trainingDatasetRes ex)
-  let decodedRes = decode NoHeader csvRes
-  let recsRes = (toList $ fromRight undefined decodedRes) :: [IrisClass]
-  return ex {trainingData = (dat, recsRes)}
-loadTrainingData lee@LamdaExecutionEnv {trainingData = (_ : _, _ : _)} = return lee
-loadTrainingData lee@LamdaExecutionEnv {trainingData = (_ : _, [])} = return undefined
-loadTrainingData lee@LamdaExecutionEnv {trainingData = ([], _ : _)} = return undefined
 
 evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, FittnesRes)]
 evalResults ex trs = mapM (evalResult ex) trs
@@ -444,7 +128,7 @@ evalResult ex tr = do
   let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) :: Int
   let biasWellDistributed = (foldr (*) 1 (map (\ty -> (foldr (\ts s -> if ((snd ts) == ty) then s + 1 else s) 1 resAndTarget)) ([minBound .. maxBound] :: [IrisClass]) :: [R])) ** (1 / 3) -- 1 (schlecht) bis 51 (gut)
   let biasSmall = exp (-(fromIntegral (countTrsR tr))) -- 0 (schlecht) bis 1 (gut)
-  let fitness' = mean [meanOfAccuricyPerClass resAndTarget, geomeanOfDistributionAccuracy resAndTarget]
+  let fitness' = meanOfAccuricyPerClass resAndTarget
   let score = fitness' + (biasSmall - 1)
   return
     ( tr,
@@ -463,32 +147,3 @@ if' :: Bool -> a -> a -> a
 if' True e _ = e
 if' False _ e = e
 
-meanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
-meanOfAccuricyPerClass results = mean $ map (accuracyInClass results) [minBound .. maxBound]
-
-geomeanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
-geomeanOfAccuricyPerClass results = geomean $ map (accuracyInClass results) [minBound .. maxBound]
-
-geomeanOfDistributionAccuracy :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
-geomeanOfDistributionAccuracy results = geomean $ map (distributionAccuracyForClass results) [minBound .. maxBound]
-
-distributionAccuracyForClass :: (Eq r) => [(r, r)] -> r -> R
-distributionAccuracyForClass results clas = (1 - (min 1 (fromIntegral (abs ((length (inResClass results clas)) - (length (inClass results clas)))) / fromIntegral (length (inClass results clas))))) * 100
-
-mean :: (Show f, Floating f) => [f] -> f
-mean values = (sum values) * (1 / (fromIntegral (length values)))
-
-geomean :: (Show f, Floating f) => [f] -> f
-geomean values = (product values) ** (1 / (fromIntegral (length values)))
-
-accuracyInClass :: (Eq r) => [(r, r)] -> r -> R
-accuracyInClass results clas = ((accuracy'(inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
-
-inClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
-inClass results clas = (filter ((clas ==) . fst) results)
-
-inResClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
-inResClass results clas = (filter ((clas ==) . snd) results)
-
-accuracy' :: (Eq r) => [(r, r)] -> R
-accuracy' results = fromIntegral $ length (filter (\(target, res) -> (res == target)) results)

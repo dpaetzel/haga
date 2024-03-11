@@ -466,3 +466,34 @@ eToLambdaExpressionShort (Constan (valS)) = valS
 
 res :: Int -> ResClass
 res = ((\lInt0 -> ((iteClass ((eqInt ((lInt0) :: (Int)) ((1) :: (Int))) :: (Bool)) ((Class1) :: (ResClass)) ((iteClass ((eqInt ((lInt0) :: (Int)) ((2) :: (Int))) :: (Bool)) ((Class2) :: (ResClass)) ((iteClass ((eqInt ((lInt0) :: (Int)) ((3) :: (Int))) :: (Bool)) ((Class3) :: (ResClass)) ((Class3) :: (ResClass))) :: (ResClass))) :: (ResClass))) :: (ResClass))) :: (Int -> ResClass))
+
+
+meanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
+meanOfAccuricyPerClass results = mean $ map (accuracyInClass results) [minBound .. maxBound]
+
+geomeanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
+geomeanOfAccuricyPerClass results = geomean $ map (accuracyInClass results) [minBound .. maxBound]
+
+geomeanOfDistributionAccuracy :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
+geomeanOfDistributionAccuracy results = geomean $ map (distributionAccuracyForClass results) [minBound .. maxBound]
+
+distributionAccuracyForClass :: (Eq r) => [(r, r)] -> r -> R
+distributionAccuracyForClass results clas = (1 - (min 1 (fromIntegral (abs ((length (inResClass results clas)) - (length (inClass results clas)))) / fromIntegral (length (inClass results clas))))) * 100
+
+mean :: (Show f, Floating f) => [f] -> f
+mean values = (sum values) * (1 / (fromIntegral (length values)))
+
+geomean :: (Show f, Floating f) => [f] -> f
+geomean values = (product values) ** (1 / (fromIntegral (length values)))
+
+accuracyInClass :: (Eq r) => [(r, r)] -> r -> R
+accuracyInClass results clas = ((accuracy'(inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
+
+inClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
+inClass results clas = (filter ((clas ==) . fst) results)
+
+inResClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
+inResClass results clas = (filter ((clas ==) . snd) results)
+
+accuracy' :: (Eq r) => [(r, r)] -> R
+accuracy' results = fromIntegral $ length (filter (\(target, res) -> (res == target)) results)
