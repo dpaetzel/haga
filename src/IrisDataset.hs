@@ -12,15 +12,12 @@ module IrisDataset
   )
 where
 
-import qualified Data.ByteString.Lazy as B
-import Data.Csv
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import Data.Random
 import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
 import Data.Tuple.Extra
-import qualified Debug.Trace as DB
 import GA
 import LambdaCalculus
 import IrisData
@@ -96,7 +93,6 @@ data FittnesRes = FittnesRes
     fitnessGeoMean :: R,
     fitnessMean :: R,
     accuracy :: Int,
-    biasDist :: R,
     biasSize :: R
   }
   deriving (Show)
@@ -126,7 +122,6 @@ evalResult ex tr = do
   let res = map (\(a, b, c, d) -> result a b c d) (fst (trainingData ex))
   let resAndTarget = (zip (snd (trainingData ex)) res)
   let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) :: Int
-  let biasWellDistributed = (foldr (*) 1 (map (\ty -> (foldr (\ts s -> if ((snd ts) == ty) then s + 1 else s) 1 resAndTarget)) ([minBound .. maxBound] :: [IrisClass]) :: [R])) ** (1 / 3) -- 1 (schlecht) bis 51 (gut)
   let biasSmall = exp (-(fromIntegral (countTrsR tr))) -- 0 (schlecht) bis 1 (gut)
   let fitness' = meanOfAccuricyPerClass resAndTarget
   let score = fitness' + (biasSmall - 1)
@@ -138,7 +133,6 @@ evalResult ex tr = do
           fitnessMean = meanOfAccuricyPerClass resAndTarget,
           fitnessGeoMean = geomeanOfDistributionAccuracy resAndTarget,
           accuracy = acc,
-          biasDist = biasWellDistributed,
           biasSize = biasSmall
         }
     )
