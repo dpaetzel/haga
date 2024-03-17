@@ -31,6 +31,7 @@ import Data.Random
 import Pipes
 import Pretty
 import Protolude
+import Protolude.Error
 import System.Random.MWC (create, createSystemRandom)
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Instances ()
@@ -55,7 +56,7 @@ class (Pretty e, Individual i) => Environment i e | e -> i where
   --  Generates a random population of the given size.
   population :: e -> N -> RVar (Population i)
   population env n
-    | n <= 0 = undefined
+    | n <= 0 = error "nonPositive in population"
     | otherwise = NE.fromList <$> replicateM n (new env)
 
   mutate :: e -> i -> RVar i
@@ -266,7 +267,7 @@ tournament1 ::
   RVar i
 tournament1 eval nTrnmnt pop
   -- TODO Use Positive for this constraint
-  | nTrnmnt <= 0 = undefined
+  | nTrnmnt <= 0 = error "nonPositive in tournament1"
   | otherwise = do
       paricipants <- withoutReplacement nTrnmnt pop
       return $ NE.head $ fst $ bests eval 1 paricipants
@@ -279,7 +280,7 @@ withoutReplacement ::
   N ->
   Population i ->
   RVar (NonEmpty i)
-withoutReplacement 0 _ = undefined
+withoutReplacement 0 _ = error "0 in withoutReplacement"
 withoutReplacement n pop
   | n >= length pop = return pop
   | otherwise = fmap (NE.fromList) (shuffleNofM n (length pop) (NE.toList pop))

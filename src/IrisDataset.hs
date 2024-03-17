@@ -24,6 +24,7 @@ import IrisData
 import qualified Language.Haskell.Interpreter as Hint
 import qualified Language.Haskell.Interpreter.Unsafe as Hint
 import Protolude
+import Protolude.Error
 import qualified Type.Reflection as Ref
 
 irisLE :: LambdaEnviroment
@@ -34,9 +35,9 @@ irisLE =
           [ ((Ref.SomeTypeRep (Ref.TypeRep @(Float -> Float -> Float))), ["(+)", "(-)", "(*)"]),
             ((Ref.SomeTypeRep (Ref.TypeRep @(Float -> Float -> Bool))), ["(>)", "(==)", "(>=)"]),
             ((Ref.SomeTypeRep (Ref.TypeRep @(IrisClass -> IrisClass -> Bool))), ["(==)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Float -> Float -> Float))), ["if'"]),
+            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Float -> Float -> Float))), ["if'","if'","if'","if'","if'","if'","if'","if'"]),
             ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Bool -> Bool))), ["(&&)", "(||)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> IrisClass -> IrisClass -> IrisClass))), ["if'"])
+            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> IrisClass -> IrisClass -> IrisClass))), ["if'","if'","if'","if'","if'","if'","if'","if'","if'","if'"])
           ],
       constants =
         Map.fromList
@@ -50,9 +51,9 @@ irisLE =
         ExpressionWeights
           { lambdaSpucker = 1,
             lambdaSchlucker = 1,
-            symbol = 1,
-            variable = 2,
-            constant = 1
+            symbol = 30,
+            variable = 100,
+            constant = 5
           }
     }
 
@@ -61,13 +62,14 @@ irisLEE =
   LamdaExecutionEnv
     { -- For now these need to define all available functions and types. Generic functions can be used.
       imports = ["IrisDataset"],
-      -- Path to a CSV file containing the training dataset
-      trainingDataset = "./iris.csv",
-      -- Path to a CSV file containing the dataset results
-      trainingDatasetRes = "./res.csv",
+      training = True,
       trainingData =
         ( map fst irisTrainingData,
           map snd irisTrainingData
+        ),
+      testData =
+        ( map fst irisTestData,
+          map snd irisTestData
         ),
       exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Float -> Float -> Float -> Float -> IrisClass))),
       -- todo: kindaHacky
@@ -77,11 +79,9 @@ irisLEE =
 data LamdaExecutionEnv = LamdaExecutionEnv
   { -- For now these need to define all available functions and types. Generic functions can be used.
     imports :: [Text],
-    -- Path to a CSV file containing the training dataset
-    trainingDataset :: FilePath,
-    -- Path to a CSV file containing the dataset results
-    trainingDatasetRes :: FilePath,
+    training :: Bool,
     trainingData :: ([(Float, Float, Float, Float)], [IrisClass]),
+    testData :: ([(Float, Float, Float, Float)], [IrisClass]),
     exTargetType :: TypeRep,
     -- todo: kindaHacky
     results :: Map TypeRequester FittnesRes
@@ -107,9 +107,11 @@ instance Evaluator TypeRequester LamdaExecutionEnv FittnesRes where
     let toAdd = NE.filter (\k -> not (Map.member k (results env))) pop
     toInsert <- Hint.runInterpreter (evalResults env toAdd)
     let insertPair (key, val) m = Map.insert key val m
-    let res = foldr insertPair (results env) (fromRight undefined toInsert)
+    let res = foldr insertPair (results env) (fromRight (error ("To insert is " <> show toInsert)) toInsert)
     return env {results = res}
 
+dset :: LamdaExecutionEnv -> ([(Float, Float, Float, Float)], [IrisClass])
+dset lEE = if training lEE then trainingData lEE else testData lEE
 
 evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, FittnesRes)]
 evalResults ex trs = mapM (evalResult ex) trs
@@ -119,10 +121,10 @@ evalResult ex tr = do
   Hint.setImports $ (map T.unpack (imports ex)) ++ ["Protolude"]
   Hint.unsafeSetGhcOption "-O2"
   result <- Hint.interpret (T.unpack (toLambdaExpressionS tr)) (Hint.as :: Float -> Float -> Float -> Float -> IrisClass)
-  let res = map (\(a, b, c, d) -> result a b c d) (fst (trainingData ex))
-  let resAndTarget = (zip (snd (trainingData ex)) res)
+  let res = map (\(a, b, c, d) -> result a b c d) (fst (dset ex))
+  let resAndTarget = (zip (snd (dset ex)) res)
   let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) :: Int
-  let biasSmall = exp (-(fromIntegral (countTrsR tr))) -- 0 (schlecht) bis 1 (gut)
+  let biasSmall = exp ((-(fromIntegral (countTrsR tr)))/1000) -- 0 (schlecht) bis 1 (gut)
   let fitness' = meanOfAccuricyPerClass resAndTarget
   let score = fitness' + (biasSmall - 1)
   return

@@ -9,7 +9,7 @@
 
 module LambdaCalculus where
 
-import Data.List (foldr1, last)
+import Data.List (foldr1, last, nub, intersect, (!!), (\\))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import Data.Maybe
@@ -20,6 +20,8 @@ import Data.Typeable
 import GA
 import Pretty
 import Protolude
+import Protolude.Error
+import Debug.Trace as DB
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Monadic (assert, monadicIO)
 import qualified Type.Reflection as Ref
@@ -92,7 +94,8 @@ toLambdaExpressionS :: TypeRequester -> Text
 toLambdaExpressionS (TR typeRep (Just lambdaExpression) boundVars) = "((" <> eToLambdaExpressionS lambdaExpression <> ") :: (" <> show typeRep <> "))"
 toLambdaExpressionS (TR _ (Nothing) _) = "Invalid Lambda Epr"
 
--- data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int | Constan ConVal
+-- data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq, Ord, Show)
+
 
 eToLambdaExpressionS :: LambdaExpression -> Text
 eToLambdaExpressionS (LambdaSpucker typeRequester1 typeRequester2 boundVars) = "(\\l" <> showSanifid (last boundVars) <> show (count boundVars (last boundVars) - 1) <> " -> " <> toLambdaExpressionS typeRequester2 <> ") " <> toLambdaExpressionS typeRequester1
@@ -240,53 +243,119 @@ instance Environment TypeRequester LambdaEnviroment where
   nX _ = 3 -- todo!
 
   crossover1 env@(LambdaEnviroment _ _ _ maxDepth _) tr1 tr2 = do
-    return Nothing
+    let trCount = countTrsR tr1
+    selectedIndex1 <- uniform 1 trCount
+    let (depthAt, selectedTr1@(TR _ _ bound1)) = depthLeftAndTypeAtR tr1 selectedIndex1 maxDepth
+    let indexes = findIndicesWhere tr2 (isCompatibleTr selectedTr1) 0
+    if length indexes == 0 then return Nothing else (do
+      (selectedTr2@(TR _ _ bound2),selectedIndex2) <- randomElement indexes
+      selectedTr2 <- adaptBoundVars selectedTr2 bound1
+      selectedTr1 <- adaptBoundVars selectedTr1 bound2
+      let child1 = replaceAtR selectedIndex1 tr1 selectedTr2
+      let child2 = replaceAtR selectedIndex2 tr2 selectedTr1
+      return $ Just (child1, child2)
+      )
 
--- TODO: crossover!
---  let trCount = countTrsR tr1
---  selectedIndex1 <- uniform 1 trCount
---  let (depthAt, selectedTr1@(TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
---  let indexes = findIndicesWhere tr2 ( == trep)
---  if length indexes == 0 then return Nothing else (do
---    (selectedTr2,selectedIndex2) <- randomElement indexes)
 
 -- helper
+adaptBoundVars:: TypeRequester -> BoundVars -> RVar TypeRequester
+adaptBoundVars tr@(TR _ _ bvOld) bvNew = do
+  newIndexMap <- generateConversionIndexMap bvOld bvNew
+  return $ convertTr tr bvOld bvNew newIndexMap
 
--- findIndicesWhere:: TypeRequester -> (TypeRep -> Bool) -> Int -> [(TypeRequester, Int)]
--- findIndicesWhere tr@(TR t lE _) filte indx = case lE of
---                            Just le -> (tr, indx+1):(findIndicesWhere' (asList le) filte (indx+1))
---                            Nothing -> undefined
+convertTr:: TypeRequester -> BoundVars -> BoundVars -> Map TypeRep (Int -> Int) -> TypeRequester
+convertTr tr@(TR tRp (Just le) bvCurr) bvOld bvNew mapper = TR tRp (Just (convertLe le bvOld bvNew mapper)) (bvNew ++ (bvCurr \\ bvOld))
+convertTr _ _ _ _ = error "le Not Just (convertTr)"
 
--- findIndicesWhere':: [TypeRequester] -> (TypeRep -> Bool) -> Int -> [(TypeRequester, Int)]
--- findIndicesWhere' (tr:trs) f indx = (findIndicesWhere tr f indx) ++ (findIndicesWhere' trs f (indx + countTrsR tr))
+
+-- data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq, Ord, Show)
+convertLe:: LambdaExpression -> BoundVars -> BoundVars -> Map TypeRep (Int -> Int) -> LambdaExpression
+convertLe (LambdaSpucker tr1 tr2 bvCurr) bvOld bvNew mapper = LambdaSpucker (convertTrf tr1) (convertTrf tr2) (bvNew ++ (bvCurr \\ bvOld))
+  where convertTrf tr = convertTr tr bvOld bvNew mapper
+convertLe (LambdaSchlucker tr bvCurr) bvOld bvNew mapper = LambdaSchlucker (convertTrf tr) (bvNew ++ (bvCurr \\ bvOld))
+  where convertTrf tr = convertTr tr bvOld bvNew mapper
+convertLe (Symbol cv trs bvCurr) bvOld bvNew mapper = Symbol cv (map convertTrf trs) (bvNew ++ (bvCurr \\ bvOld))
+  where convertTrf tr = convertTr tr bvOld bvNew mapper
+convertLe (Var varType varNumber trs bvCurr) bvOld bvNew mapper = Var varType ((fromMaybe identity (Map.lookup varType mapper)) varNumber) (map convertTrf trs) (bvNew ++ (bvCurr \\ bvOld))
+  where convertTrf tr = convertTr tr bvOld bvNew mapper
+convertLe le@(Constan _) _ _ _ = le
+
+
+generateConversionIndexMap:: BoundVars -> BoundVars -> RVar (Map TypeRep (Int -> Int))
+generateConversionIndexMap bvOld bvNew = do
+  funcs <- mapM (\bT -> genMapper (count bvOld bT - 1) (count bvNew bT - 1)) (nub bvOld)
+  return $ Map.fromList $ zip (nub bvOld) funcs
+
+genMapper:: Int -> Int -> RVar (Int -> Int)
+genMapper i j | i == j = return identity
+              | i < j = return $ \int -> if int <= i then int else int + (j-i)
+              | i > j = do
+                  permutationForUnbound <- genPermutation i j
+                  return $ genMapperRandomAssment i j permutationForUnbound
+              | otherwise = error "impossible case in genMapper"
+
+genMapperRandomAssment:: Int -> Int -> [Int] -> Int -> Int
+genMapperRandomAssment i j permutationForUnbound int | int <= j = int
+                                                     | int > i = int - (i-j)
+                                                     | otherwise = permutationForUnbound !! (int - j - 1)
+
+genPermutation:: Int -> Int -> RVar [Int]
+genPermutation i j = replicateM (i - j) (uniform 0 j)
+
+isCompatibleTr:: TypeRequester -> TypeRequester -> Bool
+isCompatibleTr tr1@(TR trep1 _ bound1) tr2@(TR trep2 _ bound2) | trep1 == trep2 = allUsedBound (usedVars bound1 tr1) bound2 && allUsedBound (usedVars bound2 tr2) bound1
+                                                       | otherwise = False
+allUsedBound :: BoundVars -> BoundVars -> Bool
+allUsedBound used available = all (\x -> any (== x) available) used
+
+
+usedVars :: BoundVars -> TypeRequester -> BoundVars
+usedVars boundOld tr@(TR trep1 (Just (Var trp ind trs _)) _) = if any (== trp) boundOld && count boundOld trp > ind then trp : concatMap (usedVars boundOld) trs else concatMap (usedVars boundOld) trs
+usedVars boundOld tr@(TR trep1 (Just le) _) =  concatMap (usedVars boundOld) (asList le)
+usedVars _ _ = error "Nothing in usedVars"
+
+
+boundsConvertable:: BoundVars -> BoundVars -> Bool
+boundsConvertable bv1 bv2 =  length (nub bv2) == length (nub bv1) && length (intersect (nub bv1) bv2) == length (nub bv1)
+
+
+findIndicesWhere:: TypeRequester -> (TypeRequester -> Bool) -> Int -> [(TypeRequester, Int)]
+findIndicesWhere tr@(TR t lE _) filte indx = case lE of
+                           Just le -> if filte tr then (tr, indx+1):(findIndicesWhere' (asList le) filte (indx+1)) else (findIndicesWhere' (asList le) filte (indx+1))
+                           Nothing -> error "Nothing in findIndicesWhere"
+
+findIndicesWhere':: [TypeRequester] -> (TypeRequester -> Bool) -> Int -> [(TypeRequester, Int)]
+findIndicesWhere' [] _ _ = []
+findIndicesWhere' [tr] f indx = (findIndicesWhere tr f indx)
+findIndicesWhere' (tr:trs) f indx = (findIndicesWhere tr f indx) ++ (findIndicesWhere' trs f (indx + countTrsR tr))
 
 replaceAtR :: Int -> TypeRequester -> TypeRequester -> TypeRequester
 replaceAtR 1 _ with = with
 replaceAtR i (TR tm (Just le) bV) with = TR tm (Just (replaceAt (i - 1) le with)) bV
-replaceAtR _ (TR _ Nothing _) _ = undefined
+replaceAtR _ (TR _ Nothing _) _ = error "Nothing in replaceAtR"
 
 replaceAt :: Int -> LambdaExpression -> TypeRequester -> LambdaExpression
 replaceAt i le@(LambdaSpucker _ _ bv) with = LambdaSpucker (fromJust (head trs)) (last trs) bv where trs = replaceInSubtreeWithIndex i (asList le) with
 replaceAt i (LambdaSchlucker tr bv) with = LambdaSchlucker (replaceAtR i tr with) bv
 replaceAt i le@(Symbol cv _ bv) with = Symbol cv trs bv where trs = replaceInSubtreeWithIndex i (asList le) with
 replaceAt i le@(Var tr ix _ bv) with = Var tr ix trs bv where trs = replaceInSubtreeWithIndex i (asList le) with
-replaceAt _ (Constan _) _ = undefined
+replaceAt _ (Constan _) _ = error "Nothing in replaceAt"
 
 replaceInSubtreeWithIndex :: Int -> [TypeRequester] -> TypeRequester -> [TypeRequester]
 replaceInSubtreeWithIndex indexLeft (tr : trs) with = if countTrsR tr >= indexLeft then (replaceAtR indexLeft tr with) : trs else tr : (replaceInSubtreeWithIndex (indexLeft - countTrsR tr) trs with)
-replaceInSubtreeWithIndex _ [] _ = undefined
+replaceInSubtreeWithIndex _ [] _ = error "Index not found in replaceInSubtreeWithIndex"
 
 depthLeftAndTypeAtR :: TypeRequester -> Int -> Int -> (Int, TypeRequester)
 depthLeftAndTypeAtR t 1 depthLeft = ((depthLeft - 1), t)
 depthLeftAndTypeAtR (TR _ (Just le) _) indexLeft depthLeft = depthLeftAndTypeAt le (indexLeft - 1) (depthLeft - 1)
-depthLeftAndTypeAtR (TR _ Nothing _) indexLeft depthLeft = undefined
+depthLeftAndTypeAtR (TR _ Nothing _) indexLeft depthLeft = error "Nothing in depthLeftAndTypeAtR"
 
 depthLeftAndTypeAt :: LambdaExpression -> Int -> Int -> (Int, TypeRequester)
 depthLeftAndTypeAt le indexLeft depthLeft = depthLeftAndTypeInSubtreeWithIndex (asList le) indexLeft depthLeft
 
 depthLeftAndTypeInSubtreeWithIndex :: [TypeRequester] -> Int -> Int -> (Int, TypeRequester)
 depthLeftAndTypeInSubtreeWithIndex (tr : trs) indexLeft depthLeft = if countTrsR tr >= indexLeft then depthLeftAndTypeAtR tr indexLeft depthLeft else depthLeftAndTypeInSubtreeWithIndex trs (indexLeft - countTrsR tr) depthLeft
-depthLeftAndTypeInSubtreeWithIndex [] indexLeft depthLeft = undefined
+depthLeftAndTypeInSubtreeWithIndex [] indexLeft depthLeft = error "Index not found in depthLeftAndTypeInSubtreeWithIndex"
 
 countTrsR :: TypeRequester -> Int
 countTrsR tr@(TR t lE _) = case lE of

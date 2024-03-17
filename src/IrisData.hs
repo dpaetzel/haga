@@ -17,41 +17,7 @@ instance ToRecord IrisClass
 
 irisTrainingData :: [((Float, Float, Float, Float), IrisClass)]
 irisTrainingData =
-  [ ((5.0, 3.5, 1.6, 0.6), Setosa),
-    ((4.6, 3.1, 1.5, 0.2), Setosa),
-    ((4.8, 3.4, 1.6, 0.2), Setosa),
-    ((4.8, 3.0, 1.4, 0.3), Setosa),
-    ((6.4, 2.9, 4.3, 1.3), Versicolor),
-    ((5.5, 2.6, 4.4, 1.2), Versicolor),
-    ((5.2, 2.7, 3.9, 1.4), Versicolor),
-    ((6.0, 2.9, 4.5, 1.5), Versicolor),
-    ((5.3, 3.7, 1.5, 0.2), Setosa),
-    ((6.4, 3.2, 5.3, 2.3), Virginica),
-    ((6.4, 3.1, 5.5, 1.8), Virginica),
-    ((5.1, 3.8, 1.6, 0.2), Setosa),
-    ((5.1, 3.7, 1.5, 0.4), Setosa),
-    ((4.6, 3.4, 1.4, 0.3), Setosa),
-    ((5.6, 3.0, 4.1, 1.3), Versicolor),
-    ((6.1, 3.0, 4.6, 1.4), Versicolor),
-    ((5.2, 3.5, 1.5, 0.2), Setosa),
-    ((7.4, 2.8, 6.1, 1.9), Virginica),
-    ((6.5, 2.8, 4.6, 1.5), Versicolor),
-    ((6.3, 3.3, 6.0, 2.5), Virginica),
-    ((4.8, 3.1, 1.6, 0.2), Setosa),
-    ((7.7, 3.0, 6.1, 2.3), Virginica),
-    ((6.0, 2.2, 5.0, 1.5), Virginica),
-    ((5.5, 2.5, 4.0, 1.3), Versicolor),
-    ((6.5, 3.0, 5.5, 1.8), Virginica),
-    ((4.4, 2.9, 1.4, 0.2), Setosa),
-    ((6.4, 3.2, 4.5, 1.5), Versicolor),
-    ((5.0, 3.4, 1.6, 0.4), Setosa),
-    ((6.1, 2.6, 5.6, 1.4), Virginica),
-    ((6.6, 2.9, 4.6, 1.3), Versicolor)
-  ]
-
-irisTestData :: [((Float, Float, Float, Float), IrisClass)]
-irisTestData =
-    [((6.7, 3.1, 4.4, 1.4), Versicolor),
+  [ ((6.7, 3.1, 4.4, 1.4), Versicolor),
     ((5.4, 3.7, 1.5, 0.2), Setosa),
     ((5.4, 3.0, 4.5, 1.5), Versicolor),
     ((5.1, 3.8, 1.5, 0.3), Setosa),
@@ -170,4 +136,39 @@ irisTestData =
     ((5.7, 2.5, 5.0, 2.0), Virginica),
     ((6.8, 2.8, 4.8, 1.4), Versicolor),
     ((6.3, 2.9, 5.6, 1.8), Virginica),
-    ((6.0, 2.2, 4.0, 1.0), Versicolor)]
+    ((6.0, 2.2, 4.0, 1.0), Versicolor)
+  ]
+
+irisTestData :: [((Float, Float, Float, Float), IrisClass)]
+irisTestData =
+  [ ((5.0, 3.5, 1.6, 0.6), Setosa),
+    ((4.6, 3.1, 1.5, 0.2), Setosa),
+    ((4.8, 3.4, 1.6, 0.2), Setosa),
+    ((4.8, 3.0, 1.4, 0.3), Setosa),
+    ((6.4, 2.9, 4.3, 1.3), Versicolor),
+    ((5.5, 2.6, 4.4, 1.2), Versicolor),
+    ((5.2, 2.7, 3.9, 1.4), Versicolor),
+    ((6.0, 2.9, 4.5, 1.5), Versicolor),
+    ((5.3, 3.7, 1.5, 0.2), Setosa),
+    ((6.4, 3.2, 5.3, 2.3), Virginica),
+    ((6.4, 3.1, 5.5, 1.8), Virginica),
+    ((5.1, 3.8, 1.6, 0.2), Setosa),
+    ((5.1, 3.7, 1.5, 0.4), Setosa),
+    ((4.6, 3.4, 1.4, 0.3), Setosa),
+    ((5.6, 3.0, 4.1, 1.3), Versicolor),
+    ((6.1, 3.0, 4.6, 1.4), Versicolor),
+    ((5.2, 3.5, 1.5, 0.2), Setosa),
+    ((7.4, 2.8, 6.1, 1.9), Virginica),
+    ((6.5, 2.8, 4.6, 1.5), Versicolor),
+    ((6.3, 3.3, 6.0, 2.5), Virginica),
+    ((4.8, 3.1, 1.6, 0.2), Setosa),
+    ((7.7, 3.0, 6.1, 2.3), Virginica),
+    ((6.0, 2.2, 5.0, 1.5), Virginica),
+    ((5.5, 2.5, 4.0, 1.3), Versicolor),
+    ((6.5, 3.0, 5.5, 1.8), Virginica),
+    ((4.4, 2.9, 1.4, 0.2), Setosa),
+    ((6.4, 3.2, 4.5, 1.5), Versicolor),
+    ((5.0, 3.4, 1.6, 0.4), Setosa),
+    ((6.1, 2.6, 5.6, 1.4), Virginica),
+    ((6.6, 2.9, 4.6, 1.3), Versicolor)
+  ]

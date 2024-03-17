@@ -10,6 +10,8 @@ import System.IO
 -- import Szenario212Pun
 -- import Szenario191
 import IrisDataset
+import Debug.Trace as DB
+import qualified Data.Map.Strict as Map
 
 data Options = Options
   { iterations :: !N,
@@ -24,7 +26,7 @@ options =
       ( long "iterations"
           <> short 'i'
           <> metavar "N"
-          <> value 1000
+          <> value 500
           <> help "Number of iterations"
       )
     <*> option
@@ -32,7 +34,7 @@ options =
       ( long "population-size"
           <> short 'p'
           <> metavar "N"
-          <> value 50
+          <> value 100
           <> help "Population size"
       )
 
@@ -52,12 +54,12 @@ main =
     let env = irisLE
     let selType = Tournament 3
     let run' = run irisLEE env selType 40 (5 / 100) (populationSize opts) (steps (iterations opts))
-    pop' <-
-      runEffect (for run' logCsv)
-
-    irisLE <- calc irisLEE  pop'
-    let (res, _) = bests irisLE 5 pop'
-    mapM_ (format irisLE) res
+    pop' <- runEffect (for run' logCsv)
+    irisLEE' <- calc irisLEE  pop'
+    let (res, _) = bests irisLEE' 5 pop'
+    let irisLEE' = irisLEE {training = False}
+    irisLEE' <- calc irisLEE' res
+    mapM_ (format irisLEE') res
   where
     format irisL s = do
       let f = fitness' irisL s
