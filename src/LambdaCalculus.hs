@@ -9,7 +9,7 @@
 
 module LambdaCalculus where
 
-import Data.List (foldr1, last, nub, intersect, (!!), (\\))
+import Data.List (foldr1, intersect, last, nub, (!!), (\\))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import Data.Maybe
@@ -17,14 +17,15 @@ import Data.Random
 import qualified Data.Text as T
 import Data.Tuple.Extra
 import Data.Typeable
+import Debug.Trace as DB
 import GA
 import Pretty
 import Protolude
 import Protolude.Error
-import Debug.Trace as DB
 import Test.QuickCheck hiding (sample, shuffle)
 import Test.QuickCheck.Monadic (assert, monadicIO)
 import qualified Type.Reflection as Ref
+import Utils
 
 data ExpressionWeights = ExpressionWeights
   { lambdaSpucker :: Int,
@@ -73,7 +74,6 @@ exampleLE =
 
 type BoundVars = [TypeRep]
 
-
 -- we need a dynamic typ with a concept of equality here, should we want to interpret the result, instead of compiling it...
 type ConVal = Text
 
@@ -95,7 +95,6 @@ toLambdaExpressionS (TR typeRep (Just lambdaExpression) boundVars) = "((" <> eTo
 toLambdaExpressionS (TR _ (Nothing) _) = "Invalid Lambda Epr"
 
 -- data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq, Ord, Show)
-
 
 eToLambdaExpressionS :: LambdaExpression -> Text
 eToLambdaExpressionS (LambdaSpucker typeRequester1 typeRequester2 boundVars) = "(\\l" <> showSanifid (last boundVars) <> show (count boundVars (last boundVars) - 1) <> " -> " <> toLambdaExpressionS typeRequester2 <> ") " <> toLambdaExpressionS typeRequester1
@@ -179,7 +178,7 @@ genLambdaSchlucker env@(LambdaEnviroment functions constants _ _ weights) depthL
   let args = typeRepArgs target
   let lambaType = fromJust (head args)
   let toFind = last args
-  typeRequester <- genTypeRequester env depthLeft toFind (boundVar ++ [lambaType])
+  typeRequester <- genTypeRequester env (depthLeft + 1) toFind (boundVar ++ [lambaType])
   return (LambdaSchlucker typeRequester (boundVar ++ [lambaType]))
 
 genLambdaConst :: LambdaEnviroment -> Int -> TypeRep -> BoundVars -> RVar LambdaExpression
@@ -234,100 +233,119 @@ instance Environment TypeRequester LambdaEnviroment where
     return tr
 
   mutate env@(LambdaEnviroment _ _ _ maxDepth _) tr = do
-    let trCount = countTrsR (tr)
-    selectedTR <- uniform 1 trCount
-    let (depthAt, (TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
-    res <- genTypeRequester env depthAt trep bound
-    return $ replaceAtR selectedTR tr res
+    selfCrossover <- uniform True False
+    co <- crossover1 env tr tr
+    if selfCrossover && isJust co
+      then do
+        let (tr1, tr2) = fromJust co
+        return $ minimumBy (compare `on` countTrsR) [tr1, tr2]
+      else do
+        let trCount = countTrsR (tr)
+        selectedTR <- uniform 1 trCount
+        let (depthAt, (TR trep _ bound)) = depthLeftAndTypeAtR tr selectedTR maxDepth
+        res <- genTypeRequester env depthAt trep bound
+        return $ replaceAtR selectedTR tr res
 
   nX _ = 3 -- todo!
 
   crossover1 env@(LambdaEnviroment _ _ _ maxDepth _) tr1 tr2 = do
     let trCount = countTrsR tr1
     selectedIndex1 <- uniform 1 trCount
-    let (depthAt, selectedTr1@(TR _ _ bound1)) = depthLeftAndTypeAtR tr1 selectedIndex1 maxDepth
-    let indexes = findIndicesWhere tr2 (isCompatibleTr selectedTr1) 0
-    if length indexes == 0 then return Nothing else (do
-      (selectedTr2@(TR _ _ bound2),selectedIndex2) <- randomElement indexes
-      selectedTr2 <- adaptBoundVars selectedTr2 bound1
-      selectedTr1 <- adaptBoundVars selectedTr1 bound2
-      let child1 = replaceAtR selectedIndex1 tr1 selectedTr2
-      let child2 = replaceAtR selectedIndex2 tr2 selectedTr1
-      return $ Just (child1, child2)
-      )
-
+    let (depthAt1, selectedTr1@(TR _ _ bound1)) = depthLeftAndTypeAtR tr1 selectedIndex1 maxDepth
+    let depthLeftNeeded = depthOfTR selectedTr1
+    let indexes = findIndicesWhere tr2 (isCompatibleTr selectedTr1 (maxDepth - depthAt1) depthLeftNeeded) 0 0
+    if length indexes == 0
+      then return Nothing
+      else
+        ( do
+            (selectedTr2@(TR _ _ bound2), selectedIndex2) <- randomElement indexes
+            selectedTr2 <- adaptBoundVars selectedTr2 bound1
+            selectedTr1 <- adaptBoundVars selectedTr1 bound2
+            let child1 = replaceAtR selectedIndex1 tr1 selectedTr2
+            let child2 = replaceAtR selectedIndex2 tr2 selectedTr1
+            return $ Just (child1, child2)
+        )
 
 -- helper
-adaptBoundVars:: TypeRequester -> BoundVars -> RVar TypeRequester
+depthOfTR :: TypeRequester -> Int
+depthOfTR (TR _ (Just le@(LambdaSchlucker _ _)) _) = maximum (0:(map depthOfTR (asList le)))
+depthOfTR (TR _ (Just le) _) = maximum (0:(map depthOfTR (asList le))) + 1
+depthOfTR _ = error "le Not Just (depthOfTR)"
+
+adaptBoundVars :: TypeRequester -> BoundVars -> RVar TypeRequester
 adaptBoundVars tr@(TR _ _ bvOld) bvNew = do
   newIndexMap <- generateConversionIndexMap bvOld bvNew
   return $ convertTr tr bvOld bvNew newIndexMap
 
-convertTr:: TypeRequester -> BoundVars -> BoundVars -> Map TypeRep (Int -> Int) -> TypeRequester
+convertTr :: TypeRequester -> BoundVars -> BoundVars -> Map TypeRep (Int -> Int) -> TypeRequester
 convertTr tr@(TR tRp (Just le) bvCurr) bvOld bvNew mapper = TR tRp (Just (convertLe le bvOld bvNew mapper)) (bvNew ++ (bvCurr \\ bvOld))
 convertTr _ _ _ _ = error "le Not Just (convertTr)"
 
-
 -- data LambdaExpression = LambdaSpucker TypeRequester TypeRequester BoundVars | LambdaSchlucker TypeRequester BoundVars | Symbol ConVal [TypeRequester] BoundVars | Var TypeRep Int [TypeRequester] BoundVars | Constan ConVal deriving (Eq, Ord, Show)
-convertLe:: LambdaExpression -> BoundVars -> BoundVars -> Map TypeRep (Int -> Int) -> LambdaExpression
+convertLe :: LambdaExpression -> BoundVars -> BoundVars -> Map TypeRep (Int -> Int) -> LambdaExpression
 convertLe (LambdaSpucker tr1 tr2 bvCurr) bvOld bvNew mapper = LambdaSpucker (convertTrf tr1) (convertTrf tr2) (bvNew ++ (bvCurr \\ bvOld))
-  where convertTrf tr = convertTr tr bvOld bvNew mapper
+  where
+    convertTrf tr = convertTr tr bvOld bvNew mapper
 convertLe (LambdaSchlucker tr bvCurr) bvOld bvNew mapper = LambdaSchlucker (convertTrf tr) (bvNew ++ (bvCurr \\ bvOld))
-  where convertTrf tr = convertTr tr bvOld bvNew mapper
+  where
+    convertTrf tr = convertTr tr bvOld bvNew mapper
 convertLe (Symbol cv trs bvCurr) bvOld bvNew mapper = Symbol cv (map convertTrf trs) (bvNew ++ (bvCurr \\ bvOld))
-  where convertTrf tr = convertTr tr bvOld bvNew mapper
+  where
+    convertTrf tr = convertTr tr bvOld bvNew mapper
 convertLe (Var varType varNumber trs bvCurr) bvOld bvNew mapper = Var varType ((fromMaybe identity (Map.lookup varType mapper)) varNumber) (map convertTrf trs) (bvNew ++ (bvCurr \\ bvOld))
-  where convertTrf tr = convertTr tr bvOld bvNew mapper
+  where
+    convertTrf tr = convertTr tr bvOld bvNew mapper
 convertLe le@(Constan _) _ _ _ = le
 
-
-generateConversionIndexMap:: BoundVars -> BoundVars -> RVar (Map TypeRep (Int -> Int))
+generateConversionIndexMap :: BoundVars -> BoundVars -> RVar (Map TypeRep (Int -> Int))
 generateConversionIndexMap bvOld bvNew = do
   funcs <- mapM (\bT -> genMapper (count bvOld bT - 1) (count bvNew bT - 1)) (nub bvOld)
   return $ Map.fromList $ zip (nub bvOld) funcs
 
-genMapper:: Int -> Int -> RVar (Int -> Int)
-genMapper i j | i == j = return identity
-              | i < j = return $ \int -> if int <= i then int else int + (j-i)
-              | i > j = do
-                  permutationForUnbound <- genPermutation i j
-                  return $ genMapperRandomAssment i j permutationForUnbound
-              | otherwise = error "impossible case in genMapper"
+genMapper :: Int -> Int -> RVar (Int -> Int)
+genMapper i j
+  | i == j = return identity
+  | i < j = return $ \int -> if int <= i then int else int + (j - i)
+  | i > j = do
+      permutationForUnbound <- genPermutation i j
+      return $ genMapperRandomAssment i j permutationForUnbound
+  | otherwise = error "impossible case in genMapper"
 
-genMapperRandomAssment:: Int -> Int -> [Int] -> Int -> Int
-genMapperRandomAssment i j permutationForUnbound int | int <= j = int
-                                                     | int > i = int - (i-j)
-                                                     | otherwise = permutationForUnbound !! (int - j - 1)
+genMapperRandomAssment :: Int -> Int -> [Int] -> Int -> Int
+genMapperRandomAssment i j permutationForUnbound int
+  | int <= j = int
+  | int > i = int - (i - j)
+  | otherwise = permutationForUnbound !! (int - j - 1)
 
-genPermutation:: Int -> Int -> RVar [Int]
+genPermutation :: Int -> Int -> RVar [Int]
 genPermutation i j = replicateM (i - j) (uniform 0 j)
 
-isCompatibleTr:: TypeRequester -> TypeRequester -> Bool
-isCompatibleTr tr1@(TR trep1 _ bound1) tr2@(TR trep2 _ bound2) | trep1 == trep2 = allUsedBound (usedVars bound1 tr1) bound2 && allUsedBound (usedVars bound2 tr2) bound1
-                                                       | otherwise = False
+isCompatibleTr :: TypeRequester -> Int -> Int -> TypeRequester -> Int -> Bool
+isCompatibleTr tr1@(TR trep1 _ bound1) maxDepthOfTR2 maxDepthOfNode tr2@(TR trep2 _ bound2) depthOfNode
+  | trep1 == trep2 = allUsedBound (usedVars bound1 tr1) bound2 && allUsedBound (usedVars bound2 tr2) bound1 && maxDepthOfTR2 >= (depthOfTR tr2) && maxDepthOfNode >= depthOfNode
+  | otherwise = False
+
 allUsedBound :: BoundVars -> BoundVars -> Bool
 allUsedBound used available = all (\x -> any (== x) available) used
 
-
 usedVars :: BoundVars -> TypeRequester -> BoundVars
 usedVars boundOld tr@(TR trep1 (Just (Var trp ind trs _)) _) = if any (== trp) boundOld && count boundOld trp > ind then trp : concatMap (usedVars boundOld) trs else concatMap (usedVars boundOld) trs
-usedVars boundOld tr@(TR trep1 (Just le) _) =  concatMap (usedVars boundOld) (asList le)
+usedVars boundOld tr@(TR trep1 (Just le) _) = concatMap (usedVars boundOld) (asList le)
 usedVars _ _ = error "Nothing in usedVars"
 
+boundsConvertable :: BoundVars -> BoundVars -> Bool
+boundsConvertable bv1 bv2 = length (nub bv2) == length (nub bv1) && length (intersect (nub bv1) bv2) == length (nub bv1)
 
-boundsConvertable:: BoundVars -> BoundVars -> Bool
-boundsConvertable bv1 bv2 =  length (nub bv2) == length (nub bv1) && length (intersect (nub bv1) bv2) == length (nub bv1)
+findIndicesWhere :: TypeRequester -> (TypeRequester -> Int -> Bool) -> Int -> Int -> [(TypeRequester, Int)]
+findIndicesWhere tr@(TR _ (Just le@(LambdaSchlucker _ _)) _) filte indx currDepth = if filte tr currDepth then (tr, indx + 1) : (findIndicesWhere' (asList le) filte (indx + 1) (currDepth)) else (findIndicesWhere' (asList le) filte (indx + 1) (currDepth))
+findIndicesWhere tr@(TR _ lE _) filte indx currDepth = case lE of
+  Just le -> if filte tr currDepth then (tr, indx + 1) : (findIndicesWhere' (asList le) filte (indx + 1) (currDepth + 1)) else (findIndicesWhere' (asList le) filte (indx + 1) (currDepth + 1))
+  Nothing -> error "Nothing in findIndicesWhere"
 
-
-findIndicesWhere:: TypeRequester -> (TypeRequester -> Bool) -> Int -> [(TypeRequester, Int)]
-findIndicesWhere tr@(TR t lE _) filte indx = case lE of
-                           Just le -> if filte tr then (tr, indx+1):(findIndicesWhere' (asList le) filte (indx+1)) else (findIndicesWhere' (asList le) filte (indx+1))
-                           Nothing -> error "Nothing in findIndicesWhere"
-
-findIndicesWhere':: [TypeRequester] -> (TypeRequester -> Bool) -> Int -> [(TypeRequester, Int)]
-findIndicesWhere' [] _ _ = []
-findIndicesWhere' [tr] f indx = (findIndicesWhere tr f indx)
-findIndicesWhere' (tr:trs) f indx = (findIndicesWhere tr f indx) ++ (findIndicesWhere' trs f (indx + countTrsR tr))
+findIndicesWhere' :: [TypeRequester] -> (TypeRequester -> Int -> Bool) -> Int -> Int -> [(TypeRequester, Int)]
+findIndicesWhere' [] _ _ _ = []
+findIndicesWhere' [tr] f indx currDepth = (findIndicesWhere tr f indx currDepth)
+findIndicesWhere' (tr : trs) f indx currDepth = (findIndicesWhere tr f indx currDepth) ++ (findIndicesWhere' trs f (indx + countTrsR tr) currDepth)
 
 replaceAtR :: Int -> TypeRequester -> TypeRequester -> TypeRequester
 replaceAtR 1 _ with = with
@@ -351,6 +369,7 @@ depthLeftAndTypeAtR (TR _ (Just le) _) indexLeft depthLeft = depthLeftAndTypeAt 
 depthLeftAndTypeAtR (TR _ Nothing _) indexLeft depthLeft = error "Nothing in depthLeftAndTypeAtR"
 
 depthLeftAndTypeAt :: LambdaExpression -> Int -> Int -> (Int, TypeRequester)
+depthLeftAndTypeAt le@(LambdaSchlucker tr bv) indexLeft depthLeft = depthLeftAndTypeInSubtreeWithIndex (asList le) indexLeft (depthLeft + 1)
 depthLeftAndTypeAt le indexLeft depthLeft = depthLeftAndTypeInSubtreeWithIndex (asList le) indexLeft depthLeft
 
 depthLeftAndTypeInSubtreeWithIndex :: [TypeRequester] -> Int -> Int -> (Int, TypeRequester)
@@ -364,17 +383,6 @@ countTrsR tr@(TR t lE _) = case lE of
 
 countTrs :: LambdaExpression -> Int
 countTrs le = sum (map countTrsR (asList le))
-
-repeatedly :: (a -> Maybe a) -> a -> [a]
-repeatedly f x = case f x of
-  Nothing -> []
-  Just y -> y : repeatedly f y
-
-count :: (Eq a) => [a] -> a -> Int
-count [] find = 0
-count ys find = length xs
-  where
-    xs = [xs | xs <- ys, xs == find]
 
 -- Test Stuff
 
@@ -535,34 +543,3 @@ eToLambdaExpressionShort (Constan (valS)) = valS
 
 res :: Int -> ResClass
 res = ((\lInt0 -> ((iteClass ((eqInt ((lInt0) :: (Int)) ((1) :: (Int))) :: (Bool)) ((Class1) :: (ResClass)) ((iteClass ((eqInt ((lInt0) :: (Int)) ((2) :: (Int))) :: (Bool)) ((Class2) :: (ResClass)) ((iteClass ((eqInt ((lInt0) :: (Int)) ((3) :: (Int))) :: (Bool)) ((Class3) :: (ResClass)) ((Class3) :: (ResClass))) :: (ResClass))) :: (ResClass))) :: (ResClass))) :: (Int -> ResClass))
-
-
-meanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
-meanOfAccuricyPerClass results = mean $ map (accuracyInClass results) [minBound .. maxBound]
-
-geomeanOfAccuricyPerClass :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
-geomeanOfAccuricyPerClass results = geomean $ map (accuracyInClass results) [minBound .. maxBound]
-
-geomeanOfDistributionAccuracy :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
-geomeanOfDistributionAccuracy results = geomean $ map (distributionAccuracyForClass results) [minBound .. maxBound]
-
-distributionAccuracyForClass :: (Eq r) => [(r, r)] -> r -> R
-distributionAccuracyForClass results clas = (1 - (min 1 (fromIntegral (abs ((length (inResClass results clas)) - (length (inClass results clas)))) / fromIntegral (length (inClass results clas))))) * 100
-
-mean :: (Show f, Floating f) => [f] -> f
-mean values = (sum values) * (1 / (fromIntegral (length values)))
-
-geomean :: (Show f, Floating f) => [f] -> f
-geomean values = (product values) ** (1 / (fromIntegral (length values)))
-
-accuracyInClass :: (Eq r) => [(r, r)] -> r -> R
-accuracyInClass results clas = ((accuracy'(inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
-
-inClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
-inClass results clas = (filter ((clas ==) . fst) results)
-
-inResClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
-inResClass results clas = (filter ((clas ==) . snd) results)
-
-accuracy' :: (Eq r) => [(r, r)] -> R
-accuracy' results = fromIntegral $ length (filter (\(target, res) -> (res == target)) results)

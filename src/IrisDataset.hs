@@ -15,6 +15,7 @@ where
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import Data.Random
+import System.Random.MWC (createSystemRandom)
 import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
 import Data.Tuple.Extra
@@ -24,6 +25,7 @@ import IrisData
 import qualified Language.Haskell.Interpreter as Hint
 import qualified Language.Haskell.Interpreter.Unsafe as Hint
 import Protolude
+import Utils
 import Protolude.Error
 import qualified Type.Reflection as Ref
 
@@ -64,15 +66,35 @@ irisLEE =
       imports = ["IrisDataset"],
       training = True,
       trainingData =
-        ( map fst irisTrainingData,
-          map snd irisTrainingData
+        ( map fst (takeFraktion 0.8 irisTrainingData),
+          map snd (takeFraktion 0.8 irisTrainingData)
         ),
       testData =
-        ( map fst irisTestData,
-          map snd irisTestData
+        ( map fst (dropFraktion 0.8 irisTrainingData),
+          map snd (dropFraktion 0.8 irisTrainingData)
         ),
       exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Float -> Float -> Float -> Float -> IrisClass))),
-      -- todo: kindaHacky
+      results = Map.empty
+    }
+
+shuffledIrisLEE :: IO LamdaExecutionEnv
+shuffledIrisLEE = do
+  mwc <- liftIO createSystemRandom
+  let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
+  itD <- smpl $ shuffle irisTrainingData
+  return  LamdaExecutionEnv
+    { -- For now these need to define all available functions and types. Generic functions can be used.
+      imports = ["IrisDataset"],
+      training = True,
+      trainingData =
+        ( map fst (takeFraktion 0.8 itD),
+          map snd (takeFraktion 0.8 itD)
+        ),
+      testData =
+        ( map fst (dropFraktion 0.8 itD),
+          map snd (dropFraktion 0.8 itD)
+        ),
+      exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Float -> Float -> Float -> Float -> IrisClass))),
       results = Map.empty
     }
 
@@ -92,8 +114,9 @@ data FittnesRes = FittnesRes
     fitnessTotal :: R,
     fitnessGeoMean :: R,
     fitnessMean :: R,
-    accuracy :: Int,
-    biasSize :: R
+    accuracy :: R,
+    biasSize :: R,
+    totalSize :: N
   }
   deriving (Show)
 
@@ -104,10 +127,11 @@ instance Evaluator TypeRequester LamdaExecutionEnv FittnesRes where
   fitness' env tr = (results env) Map.! tr
 
   calc env pop = do
-    let toAdd = NE.filter (\k -> not (Map.member k (results env))) pop
+    let relevantResults = Map.filterWithKey (\k _ -> contains pop k) (results env)
+    let toAdd = NE.filter (\k -> not (Map.member k relevantResults)) pop
     toInsert <- Hint.runInterpreter (evalResults env toAdd)
     let insertPair (key, val) m = Map.insert key val m
-    let res = foldr insertPair (results env) (fromRight (error ("To insert is " <> show toInsert)) toInsert)
+    let res = foldr insertPair relevantResults (fromRight (error ("To insert is " <> show toInsert)) toInsert)
     return env {results = res}
 
 dset :: LamdaExecutionEnv -> ([(Float, Float, Float, Float)], [IrisClass])
@@ -123,7 +147,7 @@ evalResult ex tr = do
   result <- Hint.interpret (T.unpack (toLambdaExpressionS tr)) (Hint.as :: Float -> Float -> Float -> Float -> IrisClass)
   let res = map (\(a, b, c, d) -> result a b c d) (fst (dset ex))
   let resAndTarget = (zip (snd (dset ex)) res)
-  let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) :: Int
+  let acc =  (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
   let biasSmall = exp ((-(fromIntegral (countTrsR tr)))/1000) -- 0 (schlecht) bis 1 (gut)
   let fitness' = meanOfAccuricyPerClass resAndTarget
   let score = fitness' + (biasSmall - 1)
@@ -135,7 +159,8 @@ evalResult ex tr = do
           fitnessMean = meanOfAccuricyPerClass resAndTarget,
           fitnessGeoMean = geomeanOfDistributionAccuracy resAndTarget,
           accuracy = acc,
-          biasSize = biasSmall
+          biasSize = biasSmall,
+          totalSize = countTrsR tr
         }
     )
 

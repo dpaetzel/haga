@@ -49,9 +49,9 @@ library
                      , Pretty
                      , Szenario191
                      , LambdaCalculus
-                     , IrisDataset
-                     , IrisData
-
+                     , GermanDataset
+                     , GermanData
+                     , Utils
 executable haga
   build-depends:       base
                      , bytestring
@@ -83,8 +83,9 @@ executable haga
                      , Pretty
                      , Szenario191
                      , LambdaCalculus
-                     , IrisDataset
-                     , IrisData
+                     , GermanDataset
+                     , GermanData
+                     , Utils
 
 executable haga-test
   build-depends:       base
@@ -118,5 +119,6 @@ executable haga-test
                      , Pretty
                      , Szenario191
                      , LambdaCalculus
-                     , IrisDataset
-                     , IrisData
+                     , GermanDataset
+                     , GermanData
+                     , Utils

@@ -9,7 +9,7 @@ import Protolude hiding (for)
 import System.IO
 -- import Szenario212Pun
 -- import Szenario191
-import IrisDataset
+import GermanDataset
 import Debug.Trace as DB
 import qualified Data.Map.Strict as Map
 
@@ -26,7 +26,7 @@ options =
       ( long "iterations"
           <> short 'i'
           <> metavar "N"
-          <> value 500
+          <> value 1000
           <> help "Number of iterations"
       )
     <*> option
@@ -51,18 +51,19 @@ main :: IO ()
 main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
-    let env = irisLE
+    germanLEE <- shuffledGermanLEE
+    let env = germanLE
     let selType = Tournament 3
-    let run' = run irisLEE env selType 40 (5 / 100) (populationSize opts) (steps (iterations opts))
+    let run' = run germanLEE env selType 80 (5 / 100) (populationSize opts) (steps (iterations opts))
     pop' <- runEffect (for run' logCsv)
-    irisLEE' <- calc irisLEE  pop'
-    let (res, _) = bests irisLEE' 5 pop'
-    let irisLEE' = irisLEE {training = False}
-    irisLEE' <- calc irisLEE' res
-    mapM_ (format irisLEE') res
+    germanLEE' <- calc germanLEE  pop'
+    let (res, _) = bests germanLEE' 5 pop'
+    let germanLEE' = germanLEE {training = False}
+    germanLEE' <- calc germanLEE' res
+    mapM_ (format germanLEE') res
   where
-    format irisL s = do
-      let f = fitness' irisL s
+    format germanL s = do
+      let f = fitness' germanL s
       putErrText $ show f <> "\n" <> pretty s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f
