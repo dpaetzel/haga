@@ -2,8 +2,7 @@
   description = "Flake for haga";
   inputs = {
     nixpkgs.url =
-      # 2022-06-22
-      "github:NixOS/nixpkgs/0d68d7c857fe301d49cdcd56130e0beea4ecd5aa";
+      "github:NixOS/nixpkgs/53a2c32bc66f5ae41a28d7a9a49d321172af621e";
 
   };
 
@@ -14,10 +13,12 @@
       # defaultPackage.${system} = haskellPackages.callPackage ./default.nix { };
       devShell.${system} = mkShell {
         buildInputs = [
+          haskell.compiler.ghc981
+          git
+          gcc
+          gmp
           feedgnuplot
-          haskellPackages.cabal-install
-          haskellPackages.ormolu
-          haskell.compiler.ghc8107
+          stack
         ];
       };
     };

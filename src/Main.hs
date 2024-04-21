@@ -9,7 +9,7 @@ import Protolude hiding (for)
 import System.IO
 -- import Szenario212Pun
 -- import Szenario191
-import GermanDataset
+import NurseryDataset
 import Debug.Trace as DB
 import qualified Data.Map.Strict as Map
 
@@ -51,19 +51,19 @@ main :: IO ()
 main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
-    germanLEE <- shuffledGermanLEE
-    let env = germanLE
+    nurseryLEE <- shuffledNurseryLEE
+    let env = nurseryLE
     let selType = Tournament 3
-    let run' = run germanLEE env selType 80 (5 / 100) (populationSize opts) (steps (iterations opts))
+    let run' = run nurseryLEE env selType 80 (5 / 100) (populationSize opts) (steps (iterations opts))
     pop' <- runEffect (for run' logCsv)
-    germanLEE' <- calc germanLEE  pop'
-    let (res, _) = bests germanLEE' 5 pop'
-    let germanLEE' = germanLEE {training = False}
-    germanLEE' <- calc germanLEE' res
-    mapM_ (format germanLEE') res
+    nurseryLEE' <- calc nurseryLEE  pop'
+    let (res, _) = bests nurseryLEE' 5 pop'
+    let nurseryLEE' = nurseryLEE {training = False}
+    nurseryLEE' <- calc nurseryLEE' res
+    mapM_ (format nurseryLEE') res
   where
-    format germanL s = do
-      let f = fitness' germanL s
+    format nurseryL s = do
+      let f = fitness' nurseryL s
       putErrText $ show f <> "\n" <> pretty s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f
