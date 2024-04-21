@@ -30,6 +30,7 @@ library
                      , MonadRandom
                      , mwc-random
                      , optparse-applicative
+                     , parallel
                      , path
                      , pipes
                      , primitive
@@ -63,6 +64,7 @@ executable haga
                      , MonadRandom
                      , mwc-random
                      , optparse-applicative
+                     , parallel
                      , path
                      , pipes
                      , primitive
@@ -99,6 +101,7 @@ executable haga-test
                      , MonadRandom
                      , mwc-random
                      , optparse-applicative
+                     , parallel
                      , path
                      , pipes
                      , primitive

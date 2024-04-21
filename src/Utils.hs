@@ -30,7 +30,7 @@ geomean :: (Show f, Floating f) => [f] -> f
 geomean values = (product values) ** (1 / (fromIntegral (length values)))
 
 accuracyInClass :: (Eq r) => [(r, r)] -> r -> R
-accuracyInClass results clas = ((accuracy' (inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
+accuracyInClass results clas = if fromIntegral (length (inClass results clas)) == 0 then 100 else ((accuracy' (inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
 
 inClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
 inClass results clas = (filter ((clas ==) . fst) results)

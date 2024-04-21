@@ -74,13 +74,13 @@ nurseryLE =
             ((Ref.SomeTypeRep (Ref.TypeRep @(Health))), [(fmap show (enumUniform NotRecommendHealth PriorityHealth ))])
           ],
       targetType = (Ref.SomeTypeRep (Ref.TypeRep @(Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))),
-      maxDepth = 8,
+      maxDepth = 7,
       weights =
         ExpressionWeights
-          { lambdaSpucker = 1,
+          { lambdaSpucker = 2,
             lambdaSchlucker = 1,
             symbol = 30,
-            variable = 10,
+            variable = 20,
             constant = 5
           }
     }
@@ -165,23 +165,19 @@ dset :: LamdaExecutionEnv -> ([(Parents, HasNurs, Form, Children, Housing, Finan
 dset lEE = if training lEE then trainingData lEE else testData lEE
 
 evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, FittnesRes)]
-evalResults ex trs = mapM (evalResult ex) trs
-
-evalResult :: LamdaExecutionEnv -> TypeRequester -> Hint.InterpreterT IO (TypeRequester, FittnesRes)
-evalResult ex tr = do
+evalResults ex trs = do
   Hint.setImports $ (map T.unpack (imports ex)) ++ ["Protolude"]
   Hint.unsafeSetGhcOption "-O2"
-  result <- Hint.interpret (T.unpack (toLambdaExpressionS tr)) (Hint.as :: Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass)
-  let res = map (\(a, b, c, d, e, f, g, h) -> result a b c d e f g h) (fst (dset ex))
-  let resAndTarget = (zip (snd (dset ex)) res)
-  let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
-  let biasSmall = exp ((-(fromIntegral (countTrsR tr))) / 1000) -- 0 (schlecht) bis 1 (gut)
-  let fitness' = meanOfAccuricyPerClass resAndTarget
-  let score = fitness' + (biasSmall - 1)
-  return
-    ( tr,
+  let arrayOfFunctionText = map toLambdaExpressionS trs
+  let textOfFunctionArray = "[" <> T.intercalate "," arrayOfFunctionText <> "]"
+  result <- Hint.interpret (T.unpack (textOfFunctionArray)) (Hint.as :: [Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass])
+  return $ zipWith (evalResult ex) trs result
+
+
+evalResult :: LamdaExecutionEnv -> TypeRequester -> (Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass) -> (TypeRequester, FittnesRes)
+evalResult ex tr result = ( tr,
       FittnesRes
-        { total = score,
+        { total = acc * 100 + (biasSmall - 1),
           fitnessTotal = fitness',
           fitnessMean = meanOfAccuricyPerClass resAndTarget,
           fitnessGeoMean = geomeanOfDistributionAccuracy resAndTarget,
@@ -190,6 +186,14 @@ evalResult ex tr = do
           totalSize = countTrsR tr
         }
     )
+    where
+    res = map (\(a, b, c, d, e, f, g, h) -> result a b c d e f g h) (fst (dset ex))
+    resAndTarget = (zip (snd (dset ex)) res)
+    acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
+    biasSmall = exp ((-(fromIntegral (countTrsR tr))) / 1000) -- 0 (schlecht) bis 1 (gut)
+    fitness' = meanOfAccuricyPerClass resAndTarget
+    score = fitness' + (biasSmall - 1)
+
 
 if' :: Bool -> a -> a -> a
 if' True e _ = e

@@ -26,7 +26,7 @@ options =
       ( long "iterations"
           <> short 'i'
           <> metavar "N"
-          <> value 1000
+          <> value 10000
           <> help "Number of iterations"
       )
     <*> option
@@ -34,7 +34,7 @@ options =
       ( long "population-size"
           <> short 'p'
           <> metavar "N"
-          <> value 100
+          <> value 400
           <> help "Population size"
       )
 
@@ -54,7 +54,7 @@ main =
     nurseryLEE <- shuffledNurseryLEE
     let env = nurseryLE
     let selType = Tournament 3
-    let run' = run nurseryLEE env selType 80 (5 / 100) (populationSize opts) (steps (iterations opts))
+    let run' = run nurseryLEE env selType 120 (5 / 100) (populationSize opts) (steps (iterations opts))
     pop' <- runEffect (for run' logCsv)
     nurseryLEE' <- calc nurseryLEE  pop'
     let (res, _) = bests nurseryLEE' 5 pop'
