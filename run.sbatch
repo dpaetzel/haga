@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --time=06:30:00
+#SBATCH --time=18:00:00
 #SBATCH --partition=cpu
 #SBATCH --array=0-30
 #SBATCH --output=./output/output_run_%j.txt

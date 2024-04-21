@@ -26,7 +26,7 @@ options =
       ( long "iterations"
           <> short 'i'
           <> metavar "N"
-          <> value 10000
+          <> value 5000
           <> help "Number of iterations"
       )
     <*> option
