@@ -4,27 +4,14 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module NurseryData where
+module LambdaDatasets.NurseryData
+  ( module LambdaDatasets.NurseryDefinition,
+    module LambdaDatasets.NurseryData,
+  )
+where
 
 import Protolude
-
-data NurseryClass = NotRecommend | Recommend | VeryRecommend | Priority | SpecPriority deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data Parents = Usual | Pretentious | GreatPret deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data HasNurs = ProperNurs | LessProperNurs | ImproperNurs | CriticalNurs | VeryCritNurs deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data Form    = CompleteFamilyForm | CompletedFamilyForm | IncompleteFamilyForm | FosterFamilyForm deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data Children = OneChild | TwoChilds | ThreeChilds | MoreChilds deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data Housing = ConvenientHousing | LessConvHousing | CriticalHousing deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data Finance = ConvenientFinance | InconvFinance deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data Social = NotProblematicSocial | SlightlyProblematicSocial | ProblematicSocial deriving (Eq, Generic, Show, Enum, Bounded, Ord)
-
-data Health = NotRecommendHealth |RecommendedHealth | PriorityHealth  deriving (Eq, Generic, Show, Enum, Bounded, Ord)
+import LambdaDatasets.NurseryDefinition
 
 nurseryTrainingData :: [((Parents, HasNurs, Form, Children, Housing, Finance, Social, Health), NurseryClass)]
 nurseryTrainingData =

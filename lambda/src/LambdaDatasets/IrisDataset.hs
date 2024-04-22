@@ -4,10 +4,10 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module IrisDataset
+module LambdaDatasets.IrisDataset
   ( module LambdaCalculus,
-    module IrisDataset,
-    module IrisData,
+    module LambdaDatasets.IrisDataset,
+    module LambdaDatasets.IrisData,
     module GA,
   )
 where
@@ -21,7 +21,7 @@ import qualified Data.Text as T
 import Data.Tuple.Extra
 import GA
 import LambdaCalculus
-import IrisData
+import LambdaDatasets.IrisData
 import qualified Language.Haskell.Interpreter as Hint
 import qualified Language.Haskell.Interpreter.Unsafe as Hint
 import Protolude
@@ -29,8 +29,8 @@ import Utils
 import Protolude.Error
 import qualified Type.Reflection as Ref
 
-irisLE :: LambdaEnviroment
-irisLE =
+lE :: LambdaEnviroment
+lE =
   LambdaEnviroment
     { functions =
         Map.fromList
@@ -59,11 +59,11 @@ irisLE =
           }
     }
 
-irisLEE :: LamdaExecutionEnv
-irisLEE =
+lEE :: LamdaExecutionEnv
+lEE =
   LamdaExecutionEnv
     { -- For now these need to define all available functions and types. Generic functions can be used.
-      imports = ["IrisDataset"],
+      imports = ["LambdaDatasets.IrisDataset"],
       training = True,
       trainingData =
         ( map fst (takeFraktion 0.8 irisTrainingData),
@@ -77,14 +77,14 @@ irisLEE =
       results = Map.empty
     }
 
-shuffledIrisLEE :: IO LamdaExecutionEnv
-shuffledIrisLEE = do
+shuffledLEE :: IO LamdaExecutionEnv
+shuffledLEE = do
   mwc <- liftIO createSystemRandom
   let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
   itD <- smpl $ shuffle irisTrainingData
   return  LamdaExecutionEnv
     { -- For now these need to define all available functions and types. Generic functions can be used.
-      imports = ["IrisDataset"],
+      imports = ["LambdaDatasets.IrisDataset"],
       training = True,
       trainingData =
         ( map fst (takeFraktion 0.8 itD),
@@ -138,21 +138,17 @@ dset :: LamdaExecutionEnv -> ([(Float, Float, Float, Float)], [IrisClass])
 dset lEE = if training lEE then trainingData lEE else testData lEE
 
 evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, FittnesRes)]
-evalResults ex trs = mapM (evalResult ex) trs
-
-evalResult :: LamdaExecutionEnv -> TypeRequester -> Hint.InterpreterT IO (TypeRequester, FittnesRes)
-evalResult ex tr = do
+evalResults ex trs = do
   Hint.setImports $ (map T.unpack (imports ex)) ++ ["Protolude"]
   Hint.unsafeSetGhcOption "-O2"
-  result <- Hint.interpret (T.unpack (toLambdaExpressionS tr)) (Hint.as :: Float -> Float -> Float -> Float -> IrisClass)
-  let res = map (\(a, b, c, d) -> result a b c d) (fst (dset ex))
-  let resAndTarget = (zip (snd (dset ex)) res)
-  let acc =  (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
-  let biasSmall = exp ((-(fromIntegral (countTrsR tr)))/1000) -- 0 (schlecht) bis 1 (gut)
-  let fitness' = meanOfAccuricyPerClass resAndTarget
-  let score = fitness' + (biasSmall - 1)
-  return
-    ( tr,
+  let arrayOfFunctionText = map toLambdaExpressionS trs
+  let textOfFunctionArray = "[" <> T.intercalate "," arrayOfFunctionText <> "]"
+  result <- Hint.interpret (T.unpack (textOfFunctionArray)) (Hint.as :: [Float -> Float -> Float -> Float -> IrisClass])
+  return $ zipWith (evalResult ex) trs result
+
+
+evalResult :: LamdaExecutionEnv -> TypeRequester -> (Float -> Float -> Float -> Float -> IrisClass) -> (TypeRequester, FittnesRes)
+evalResult ex tr result = ( tr,
       FittnesRes
         { total = score,
           fitnessTotal = fitness',
@@ -163,8 +159,10 @@ evalResult ex tr = do
           totalSize = countTrsR tr
         }
     )
-
-if' :: Bool -> a -> a -> a
-if' True e _ = e
-if' False _ e = e
-
+    where
+    res = map (\(a, b, c, d) -> result a b c d) (fst (dset ex))
+    resAndTarget = (zip (snd (dset ex)) res)
+    acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
+    biasSmall = exp ((-(fromIntegral (countTrsR tr))) / 1000) -- 0 (schlecht) bis 1 (gut)
+    fitness' = meanOfAccuricyPerClass resAndTarget
+    score = fitness' + (biasSmall - 1)

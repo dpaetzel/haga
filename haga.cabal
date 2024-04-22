@@ -1,4 +1,4 @@
-cabal-version:       2.2
+cabal-version:       3.4
 name:                haga
 version:             0.1.0.0
 synopsis:            Simplistic genetic algorithms library
@@ -43,23 +43,25 @@ library
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts -O2
-  hs-source-dirs:      src
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -O2
+  hs-source-dirs:      lib, lambda/lib
+  other-modules:       CommonDefinition
   exposed-modules:     GA
-                     , Seminar
-                     , Pretty
-                     , Szenario191
                      , LambdaCalculus
-                     , NurseryDataset
-                     , NurseryData
+                     , Pretty
                      , Utils
-executable haga
+                     , LambdaDatasets.NurseryDefinition
+                     , LambdaDatasets.GermanDefinition
+                     , LambdaDatasets.IrisDefinition
+
+executable haga-lambda
   build-depends:       base
                      , bytestring
                      , cassava
                      , containers
                      , extra
                      , hint
+                     , haga
                      , monad-loops
                      , MonadRandom
                      , mwc-random
@@ -78,16 +80,32 @@ executable haga
                      , wl-pprint-text
   default-language:    Haskell2010
   ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts -O2
-  hs-source-dirs:      src
+  hs-source-dirs:      lambda/src
   main-is:             Main.hs
-  other-modules:       GA
-                     , Seminar
-                     , Pretty
+  other-modules:       LambdaDatasets.NurseryDataset
+                     , LambdaDatasets.NurseryData
+                     , LambdaDatasets.GermanDataset
+                     , LambdaDatasets.GermanData
+                     , LambdaDatasets.IrisDataset
+                     , LambdaDatasets.IrisData
+
+executable haga-students
+  build-depends:       base
+                     , extra
+                     , haga
+                     , optparse-applicative
+                     , protolude
+                     , pipes
+                     , QuickCheck
+                     , quickcheck-instances
+                     , random-fu
+                     , text
+  default-language:    Haskell2010
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts -O2
+  hs-source-dirs:      src-students
+  main-is:             Main.hs
+  other-modules:       Seminar
                      , Szenario191
-                     , LambdaCalculus
-                     , NurseryDataset
-                     , NurseryData
-                     , Utils
 
 executable haga-test
   build-depends:       base
@@ -96,6 +114,7 @@ executable haga-test
                      , cassava
                      , containers
                      , extra
+                     , haga
                      , hint
                      , monad-loops
                      , MonadRandom
@@ -115,13 +134,5 @@ executable haga-test
                      , wl-pprint-text
   default-language:    Haskell2010
   ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded -rtsopts -O2
-  hs-source-dirs:      src
+  hs-source-dirs:      lib
   main-is:             Test.hs
-  other-modules:       GA
-                     , Seminar
-                     , Pretty
-                     , Szenario191
-                     , LambdaCalculus
-                     , NurseryDataset
-                     , NurseryData
-                     , Utils

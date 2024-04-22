@@ -4,10 +4,10 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module NurseryDataset
+module LambdaDatasets.NurseryDataset
   ( module LambdaCalculus,
-    module NurseryDataset,
-    module NurseryData,
+    module LambdaDatasets.NurseryDataset,
+    module LambdaDatasets.NurseryData,
     module GA,
   )
 where
@@ -19,7 +19,7 @@ import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
 import Data.Tuple.Extra
 import GA
-import NurseryData
+import LambdaDatasets.NurseryData
 import LambdaCalculus
 import qualified Language.Haskell.Interpreter as Hint
 import qualified Language.Haskell.Interpreter.Unsafe as Hint
@@ -29,8 +29,8 @@ import System.Random.MWC (createSystemRandom)
 import qualified Type.Reflection as Ref
 import Utils
 
-nurseryLE :: LambdaEnviroment
-nurseryLE =
+lE :: LambdaEnviroment
+lE =
   LambdaEnviroment
     { functions =
         Map.fromList
@@ -74,52 +74,55 @@ nurseryLE =
             ((Ref.SomeTypeRep (Ref.TypeRep @(Health))), [(fmap show (enumUniform NotRecommendHealth PriorityHealth ))])
           ],
       targetType = (Ref.SomeTypeRep (Ref.TypeRep @(Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))),
-      maxDepth = 7,
+      maxDepth = 8,
       weights =
         ExpressionWeights
-          { lambdaSpucker = 2,
-            lambdaSchlucker = 1,
+          { lambdaSpucker = 1,
+            lambdaSchlucker = 2,
             symbol = 30,
             variable = 20,
             constant = 5
           }
     }
 
-nurseryLEE :: LamdaExecutionEnv
-nurseryLEE =
+trainingFraction :: R
+trainingFraction = (2/3)
+
+lEE :: LamdaExecutionEnv
+lEE =
   LamdaExecutionEnv
     { -- For now these need to define all available functions and types. Generic functions can be used.
-      imports = ["NurseryDataset"],
+      imports = ["LambdaDatasets.NurseryDefinition"],
       training = True,
       trainingData =
-        ( map fst (takeFraktion (2/3) nurseryTrainingData),
-          map snd (takeFraktion (2/3) nurseryTrainingData)
+        ( map fst (takeFraktion trainingFraction nurseryTrainingData),
+          map snd (takeFraktion trainingFraction nurseryTrainingData)
         ),
       testData =
-        ( map fst (dropFraktion (2/3) nurseryTrainingData),
-          map snd (dropFraktion (2/3) nurseryTrainingData)
+        ( map fst (dropFraktion trainingFraction nurseryTrainingData),
+          map snd (dropFraktion trainingFraction nurseryTrainingData)
         ),
       exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))),
       results = Map.empty
     }
 
-shuffledNurseryLEE :: IO LamdaExecutionEnv
-shuffledNurseryLEE = do
+shuffledLEE :: IO LamdaExecutionEnv
+shuffledLEE = do
   mwc <- liftIO createSystemRandom
   let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
   itD <- smpl $ shuffle nurseryTrainingData
   return
     LamdaExecutionEnv
       { -- For now these need to define all available functions and types. Generic functions can be used.
-        imports = ["NurseryDataset"],
+        imports = ["LambdaDatasets.NurseryDefinition"],
         training = True,
         trainingData =
-          ( map fst (takeFraktion (2/3) itD),
-            map snd (takeFraktion (2/3) itD)
+          ( map fst (takeFraktion trainingFraction itD),
+            map snd (takeFraktion trainingFraction itD)
           ),
         testData =
-          ( map fst (dropFraktion (2/3) itD),
-            map snd (dropFraktion (2/3) itD)
+          ( map fst (dropFraktion trainingFraction itD),
+            map snd (dropFraktion trainingFraction itD)
           ),
         exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))),
         results = Map.empty
@@ -194,7 +197,3 @@ evalResult ex tr result = ( tr,
     fitness' = meanOfAccuricyPerClass resAndTarget
     score = fitness' + (biasSmall - 1)
 
-
-if' :: Bool -> a -> a -> a
-if' True e _ = e
-if' False _ e = e

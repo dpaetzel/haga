@@ -127,8 +127,6 @@ instance Environment Assignment AssignmentEnviroment where
   --  Borrowed from TSP: Crossover cuts the parents in two and swaps them (if this
   --  does not create an invalid offspring).
   --
-  --  TODO Assumes that both individuals are based on the same priorities.
-  --
   crossover1 e assignment1 assignment2 = do
     let l = fromIntegral $ min (length assignment1) (length assignment2) :: Double
     x <- uniform 0 l

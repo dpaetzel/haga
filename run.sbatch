@@ -6,4 +6,4 @@
 #SBATCH --error=./output/error_run_%j.txt
 #SBATCH --nodelist=oc-compute02
 #SBATCH --mem=3G
-srun nix develop --command stack --no-nix --system-ghc --no-install-ghc run haga
+srun nix develop --command stack --no-nix --system-ghc --no-install-ghc run haga-lambda

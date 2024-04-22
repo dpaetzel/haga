@@ -23,14 +23,18 @@ geomeanOfDistributionAccuracy results = geomean $ map (distributionAccuracyForCl
 distributionAccuracyForClass :: (Eq r) => [(r, r)] -> r -> R
 distributionAccuracyForClass results clas = (1 - (min 1 (fromIntegral (abs ((length (inResClass results clas)) - (length (inClass results clas)))) / fromIntegral (length (inClass results clas))))) * 100
 
-mean :: (Show f, Floating f) => [f] -> f
-mean values = (sum values) * (1 / (fromIntegral (length values)))
+mean :: (Show f, RealFloat f) => [f] -> f
+mean values = (sum filteredValues) * (1 / (fromIntegral (length filteredValues)))
+  where
+    filteredValues = filter (not . isNaN) values
 
-geomean :: (Show f, Floating f) => [f] -> f
-geomean values = (product values) ** (1 / (fromIntegral (length values)))
+geomean :: (Show f, RealFloat f) => [f] -> f
+geomean values = (product filteredValues) ** (1 / (fromIntegral (length filteredValues)))
+  where
+    filteredValues = filter (not . isNaN) values
 
 accuracyInClass :: (Eq r) => [(r, r)] -> r -> R
-accuracyInClass results clas = if fromIntegral (length (inClass results clas)) == 0 then 100 else ((accuracy' (inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
+accuracyInClass results clas = ((accuracy' (inResClass results clas)) * 100) / fromIntegral (length (inClass results clas))
 
 inClass :: (Eq r) => [(r, r)] -> r -> [(r, r)]
 inClass results clas = (filter ((clas ==) . fst) results)
@@ -46,11 +50,11 @@ repeatedly f x = case f x of
   Nothing -> []
   Just y -> y : repeatedly f y
 
-contains :: (Eq a, Foldable t ) => t a -> a -> Bool
+contains :: (Eq a, Foldable t) => t a -> a -> Bool
 contains list val = any (== val) list
 
 count :: (Eq a) => [a] -> a -> Int
-count [] find = 0
+count [] _ = 0
 count ys find = length xs
   where
     xs = [xs | xs <- ys, xs == find]

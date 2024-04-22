@@ -93,9 +93,15 @@ class (Individual i, Fitness r) => Evaluator i e r | i -> e r where
   fitness :: e -> i -> R
   fitness env i = getR ( fitness' env i)
 
+  -- |
+  --  An more complete fitness object, used to include more info to the output of the current fitness.
+  --  You can e.g. track individual size with this.
   fitness' :: e -> i -> r
 
-  -- TODO kinda hacky?!?
+  -- |
+  -- here, fitness values for the next generation can be calculated at once, and just once, using any monadic action, if necessary.
+  -- It is guaranteed that the e passed to fitness is the result of a calc function, where the individual was part of the Population passed.
+  -- It may be smart to reuse known results between invocations.
   calc :: e -> Population i -> IO e
   calc eval _ = do
     return eval

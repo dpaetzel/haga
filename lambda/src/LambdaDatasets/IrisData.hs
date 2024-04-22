@@ -4,16 +4,14 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module IrisData where
+module LambdaDatasets.IrisData
+  ( module LambdaDatasets.IrisDefinition,
+    module LambdaDatasets.IrisData,
+  )
+where
 
-import Data.Csv
+import LambdaDatasets.IrisDefinition
 import Protolude
-
-data IrisClass = Setosa | Virginica | Versicolor deriving (Eq, Generic, Show, Enum, Bounded)
-
-instance FromRecord IrisClass
-
-instance ToRecord IrisClass
 
 irisTrainingData :: [((Float, Float, Float, Float), IrisClass)]
 irisTrainingData =
@@ -168,4 +166,3 @@ irisTrainingData =
     ((6.1, 2.6, 5.6, 1.4), Virginica),
     ((6.6, 2.9, 4.6, 1.3), Versicolor)
   ]
-

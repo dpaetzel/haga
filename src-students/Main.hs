@@ -7,11 +7,8 @@ import Pipes
 import Pretty
 import Protolude hiding (for)
 import System.IO
--- import Szenario212Pun
--- import Szenario191
-import NurseryDataset
-import Debug.Trace as DB
-import qualified Data.Map.Strict as Map
+import Seminar
+import Szenario191
 
 data Options = Options
   { iterations :: !N,
@@ -26,7 +23,7 @@ options =
       ( long "iterations"
           <> short 'i'
           <> metavar "N"
-          <> value 5000
+          <> value 1500
           <> help "Number of iterations"
       )
     <*> option
@@ -51,19 +48,18 @@ main :: IO ()
 main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
-    nurseryLEE <- shuffledNurseryLEE
-    let env = nurseryLE
+    let seminarEE = prios
+    let env = AssignmentEnviroment (students seminarEE, topics seminarEE)
     let selType = Tournament 3
-    let run' = run nurseryLEE env selType 120 (5 / 100) (populationSize opts) (steps (iterations opts))
+    let run' = run seminarEE env selType 120 (5 / 100) (populationSize opts) (steps (iterations opts))
     pop' <- runEffect (for run' logCsv)
-    nurseryLEE' <- calc nurseryLEE  pop'
-    let (res, _) = bests nurseryLEE' 5 pop'
-    let nurseryLEE' = nurseryLEE {training = False}
-    nurseryLEE' <- calc nurseryLEE' res
-    mapM_ (format nurseryLEE') res
+    seminarEE' <- calc seminarEE  pop'
+    let (res, _) = bests seminarEE' 5 pop'
+    seminarEE' <- calc seminarEE' res
+    mapM_ (format seminarEE') res
   where
-    format nurseryL s = do
-      let f = fitness' nurseryL s
+    format seminarL s = do
+      let f = fitness' seminarL s
       putErrText $ show f <> "\n" <> pretty s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f

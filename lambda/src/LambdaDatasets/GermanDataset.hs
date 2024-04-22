@@ -4,10 +4,10 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module GermanDataset
+module LambdaDatasets.GermanDataset
   ( module LambdaCalculus,
-    module GermanDataset,
-    module GermanData,
+    module LambdaDatasets.GermanDataset,
+    module LambdaDatasets.GermanData,
     module GA,
   )
 where
@@ -19,7 +19,7 @@ import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
 import Data.Tuple.Extra
 import GA
-import GermanData
+import LambdaDatasets.GermanData
 import LambdaCalculus
 import qualified Language.Haskell.Interpreter as Hint
 import qualified Language.Haskell.Interpreter.Unsafe as Hint
@@ -29,8 +29,8 @@ import System.Random.MWC (createSystemRandom)
 import qualified Type.Reflection as Ref
 import Utils
 
-germanLE :: LambdaEnviroment
-germanLE =
+lE :: LambdaEnviroment
+lE =
   LambdaEnviroment
     { functions =
         Map.fromList
@@ -90,18 +90,18 @@ germanLE =
       weights =
         ExpressionWeights
           { lambdaSpucker = 1,
-            lambdaSchlucker = 1,
+            lambdaSchlucker = 2,
             symbol = 30,
             variable = 10,
             constant = 5
           }
     }
 
-germanLEE :: LamdaExecutionEnv
-germanLEE =
+lEE :: LamdaExecutionEnv
+lEE =
   LamdaExecutionEnv
     { -- For now these need to define all available functions and types. Generic functions can be used.
-      imports = ["GermanDataset"],
+      imports = ["LambdaDatasets.GermanDefinition"],
       training = True,
       trainingData =
         ( map fst (takeFraktion 0.8 germanTrainingData),
@@ -115,15 +115,15 @@ germanLEE =
       results = Map.empty
     }
 
-shuffledGermanLEE :: IO LamdaExecutionEnv
-shuffledGermanLEE = do
+shuffledLEE :: IO LamdaExecutionEnv
+shuffledLEE = do
   mwc <- liftIO createSystemRandom
   let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
   itD <- smpl $ shuffle germanTrainingData
   return
     LamdaExecutionEnv
       { -- For now these need to define all available functions and types. Generic functions can be used.
-        imports = ["GermanDataset"],
+        imports = ["LambdaDatasets.GermanDefinition"],
         training = True,
         trainingData =
           ( map fst (takeFraktion 0.8 itD),
@@ -177,21 +177,17 @@ dset :: LamdaExecutionEnv -> ([(AccountStatus, Int, CreditHistory, Purpose, Int,
 dset lEE = if training lEE then trainingData lEE else testData lEE
 
 evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, FittnesRes)]
-evalResults ex trs = mapM (evalResult ex) trs
-
-evalResult :: LamdaExecutionEnv -> TypeRequester -> Hint.InterpreterT IO (TypeRequester, FittnesRes)
-evalResult ex tr = do
+evalResults ex trs = do
   Hint.setImports $ (map T.unpack (imports ex)) ++ ["Protolude"]
   Hint.unsafeSetGhcOption "-O2"
-  result <- Hint.interpret (T.unpack (toLambdaExpressionS tr)) (Hint.as :: AccountStatus -> Int -> CreditHistory -> Purpose -> Int -> Savings -> EmploymentStatus -> Int -> StatusAndSex -> OtherDebtors -> Int -> Property -> Int -> OtherPlans -> Housing -> Int -> Job -> Int -> Bool -> Bool -> GermanClass)
-  let res = map (\(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t) -> result a b c d e f g h i j k l m n o p q r s t) (fst (dset ex))
-  let resAndTarget = (zip (snd (dset ex)) res)
-  let acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
-  let biasSmall = exp ((-(fromIntegral (countTrsR tr))) / 1000) -- 0 (schlecht) bis 1 (gut)
-  let fitness' = meanOfAccuricyPerClass resAndTarget
-  let score = fitness' + (biasSmall - 1)
-  return
-    ( tr,
+  let arrayOfFunctionText = map toLambdaExpressionS trs
+  let textOfFunctionArray = "[" <> T.intercalate "," arrayOfFunctionText <> "]"
+  result <- Hint.interpret (T.unpack (textOfFunctionArray)) (Hint.as :: [AccountStatus -> Int -> CreditHistory -> Purpose -> Int -> Savings -> EmploymentStatus -> Int -> StatusAndSex -> OtherDebtors -> Int -> Property -> Int -> OtherPlans -> Housing -> Int -> Job -> Int -> Bool -> Bool -> GermanClass])
+  return $ zipWith (evalResult ex) trs result
+
+
+evalResult :: LamdaExecutionEnv -> TypeRequester -> (AccountStatus -> Int -> CreditHistory -> Purpose -> Int -> Savings -> EmploymentStatus -> Int -> StatusAndSex -> OtherDebtors -> Int -> Property -> Int -> OtherPlans -> Housing -> Int -> Job -> Int -> Bool -> Bool -> GermanClass) -> (TypeRequester, FittnesRes)
+evalResult ex tr result = ( tr,
       FittnesRes
         { total = score,
           fitnessTotal = fitness',
@@ -202,7 +198,11 @@ evalResult ex tr = do
           totalSize = countTrsR tr
         }
     )
+    where
+    res = map (\(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t) -> result a b c d e f g h i j k l m n o p q r s t) (fst (dset ex))
+    resAndTarget = (zip (snd (dset ex)) res)
+    acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
+    biasSmall = exp ((-(fromIntegral (countTrsR tr))) / 1000) -- 0 (schlecht) bis 1 (gut)
+    fitness' = meanOfAccuricyPerClass resAndTarget
+    score = fitness' + (biasSmall - 1)
 
-if' :: Bool -> a -> a -> a
-if' True e _ = e
-if' False _ e = e
