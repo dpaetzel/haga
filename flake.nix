@@ -18,6 +18,9 @@
           haskellPackages.cabal-install
           haskellPackages.ormolu
           haskell.compiler.ghc8107
+          # TODO Switch to merljoha setup (stack and more recent ghc)
+          # haskell.compiler.ghc981
+          # stack
         ];
       };
     };
