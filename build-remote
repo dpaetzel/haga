@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+
+ssh c3 'cd haga; nix develop --command cabal build'

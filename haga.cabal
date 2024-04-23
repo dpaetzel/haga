@@ -37,7 +37,7 @@ library
                      , text
                      , wl-pprint-text
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans
+  ghc-options:         -Wall -Wno-name-shadowing -Wno-orphans -threaded
   hs-source-dirs:      src
   exposed-modules:     GA
                      , Seminar
