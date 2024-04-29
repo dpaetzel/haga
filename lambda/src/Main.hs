@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -52,10 +53,16 @@ main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
     lEE <- shuffledLEE
-    let env = lE
-    let selType = Tournament 3
-    let run' = run lEE env selType 120 (5 / 100) (populationSize opts) (steps (iterations opts))
-    pop' <- runEffect (for run' logCsv)
+    let cfg = GaRunConfig {
+      enviroment = lE,
+      initialEvaluator = lEE,
+      selectionType = Tournament 3,
+      termination = (steps (iterations opts)),
+      poulationSize = (populationSize opts),
+      stepSize = 120,
+      elitismRatio = 5/100
+    }
+    pop' <- runEffect (for (run cfg) logCsv)
     lEE' <- calc lEE  pop'
     let (res, _) = bests lEE' 5 pop'
     let lEE' = lEE {training = False}

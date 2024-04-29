@@ -48,15 +48,20 @@ main :: IO ()
 main =
   execParser optionsWithHelp >>= \opts -> do
     hSetBuffering stdout NoBuffering
-    let seminarEE = prios
-    let env = AssignmentEnviroment (students seminarEE, topics seminarEE)
-    let selType = Tournament 3
-    let run' = run seminarEE env selType 120 (5 / 100) (populationSize opts) (steps (iterations opts))
-    pop' <- runEffect (for run' logCsv)
-    seminarEE' <- calc seminarEE  pop'
-    let (res, _) = bests seminarEE' 5 pop'
-    seminarEE' <- calc seminarEE' res
-    mapM_ (format seminarEE') res
+    let cfg = GaRunConfig {
+      enviroment = AssignmentEnviroment (students prios, topics prios),
+      initialEvaluator = prios,
+      selectionType = Tournament 3,
+      termination = (steps (iterations opts)),
+      poulationSize = (populationSize opts),
+      stepSize = 120,
+      elitismRatio = 5/100
+    }
+    pop' <- runEffect (for (run cfg) logCsv)
+    prios' <- calc prios  pop'
+    let (res, _) = bests prios' 5 pop'
+    prios' <- calc prios' res
+    mapM_ (format prios') res
   where
     format seminarL s = do
       let f = fitness' seminarL s

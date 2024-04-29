@@ -6,7 +6,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 -- |
 -- Module      : GA
 -- Description : Abstract genetic algorithm
@@ -20,7 +24,7 @@
 -- In order to use it for a certain problem, basically, you have to make your
 -- solution type an instance of 'Individual' and then simply call the 'run'
 -- function.
-module GA (Environment, new, population, mutate, crossover1, crossover, nX, Fitness, getR, Evaluator, fitness,fitness', calc, Individual, GA.run, Tournament (..), N, R, Population, steps, bests, runTests) where
+module GA (Environment (..), Fitness (..), Evaluator (..), Individual (..), GA.run, Tournament (..), N, R, Population, steps, bests, runTests, GaRunConfig (..)) where
 
 import Control.Arrow hiding (first, second)
 import Data.List.NonEmpty ((<|))
@@ -47,7 +51,7 @@ type R = Double
 -- |
 --  An Environment that Individuals of type i can be created from
 --  It stores all information required to create and change Individuals correctly
-class (Pretty e, Individual i) => Environment i e | e -> i where
+class (Pretty e, Individual i) => Environment i e | e -> i, i -> e where
   -- |
   --  Generates a completely random individual.
   new :: e -> RVar i
@@ -84,7 +88,7 @@ class (Pretty e, Individual i) => Environment i e | e -> i where
 -- |
 --  An Evaluator that Individuals of type i can be evaluated by
 --  It stores all information required to evaluate an individuals fitness
-class (Individual i, Fitness r) => Evaluator i e r | i -> e r where
+class (Individual i, Fitness r) => Evaluator i e r | e -> i r, i -> e where
   -- |
   --  An individual's fitness. Higher values are considered “better”.
   --
@@ -212,21 +216,25 @@ selectBest eval pElite pop nPop = do
         then return elitists
         else return $ elitists <> (fst $ bests eval (nPop - length elitists) (NE.fromList rest))
 
-run ::
-  (Individual i, Evaluator i eval r, Environment i env, SelectionType s) =>
-  eval ->
-  env ->
-  -- | Mechanism for selecting parents
-  s ->
-  -- | Number of parents @nParents@ for creating @nParents@ children
-  N ->
-  -- | Elitism ratio @pElite@
-  R ->
-  -- | Population size
-  N ->
-  Termination i ->
-  Producer (Int, r) IO (Population i)
-run eval env selectionType nParents pElite nPop term = do
+
+-- This class encapsulates everything needed to run a generic genetic Algorithm
+data GaRunConfig i r eval env t where
+  GaRunConfig :: (Individual i, Fitness r, Evaluator i eval r, Environment i env, SelectionType t) => {
+    enviroment :: env,
+    initialEvaluator :: eval,
+    selectionType :: t,
+    termination :: (Termination i),
+    poulationSize :: N,
+    stepSize :: N,
+    elitismRatio :: R
+  } -> GaRunConfig i r eval env t
+
+
+run :: GaRunConfig i r eval env t -> Producer (Int, r) IO (Population i)
+run config@(GaRunConfig _ _ _ _ _ _ _) = do
+  let eval = initialEvaluator config
+  let env = enviroment config
+  let nPop = poulationSize config
   mwc <- liftIO createSystemRandom
   let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
   firstPop <- liftIO $ smpl $ (population env nPop)
@@ -234,12 +242,17 @@ run eval env selectionType nParents pElite nPop term = do
   return res
   where
     runIter eval count pop smpl = (
-      if term pop count
+      if (termination config) pop count
         then do
           return pop
         else do
+          let env = enviroment config
+          let nPop = poulationSize config
+          let selecType = selectionType config
+          let nParents = stepSize config
+          let pElite = elitismRatio config
           eval <- liftIO $ calc eval pop
-          withKids <- liftIO $ smpl $ reproduce eval env selectionType nParents pop
+          withKids <- liftIO $ smpl $ reproduce eval env selecType nParents pop
           eval <- liftIO $ calc eval withKids
           resPop <- liftIO $ smpl $ selectBest eval pElite withKids nPop
           let fBest = fitness' eval $ NE.head $ fst $ bests eval 1 resPop
