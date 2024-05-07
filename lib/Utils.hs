@@ -20,6 +20,9 @@ geomeanOfAccuricyPerClass results = geomean $ map (accuracyInClass results) [min
 geomeanOfDistributionAccuracy :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
 geomeanOfDistributionAccuracy results = geomean $ map (distributionAccuracyForClass results) [minBound .. maxBound]
 
+meanOfDistributionAccuracy :: (Enum r, Bounded r, Eq r) => [(r, r)] -> R
+meanOfDistributionAccuracy results = mean $ map (distributionAccuracyForClass results) [minBound .. maxBound]
+
 distributionAccuracyForClass :: (Eq r) => [(r, r)] -> r -> R
 distributionAccuracyForClass results clas = (1 - (min 1 (fromIntegral (abs ((length (inResClass results clas)) - (length (inClass results clas)))) / fromIntegral (length (inClass results clas))))) * 100
 

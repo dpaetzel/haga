@@ -107,6 +107,14 @@ instance Pretty AssignmentEnviroment where
   pretty (AssignmentEnviroment (persons,assignables)) = "Persons: " <> show persons <> " Assignables: " <> show assignables
 
 instance Environment Assignment AssignmentEnviroment where
+
+  output _ a =
+    T.unlines (gene <$> a)
+    where
+      gene :: (Maybe Student, Maybe Topic) -> Text
+      gene (s, t) =
+        pretty s <> ": " <> pretty t
+
   new (AssignmentEnviroment (persons,assignables)) = do
     let aPadding = replicate (length persons - length assignables) Nothing
     let paddedAssignables = (Just <$> assignables) ++ aPadding
@@ -138,14 +146,6 @@ instance Environment Assignment AssignmentEnviroment where
     where
       f x v1 v2 i = if i <= x then v1 else v2
 
-
-instance Pretty Assignment where
-  pretty (a) =
-    T.unlines (gene <$> a)
-    where
-      gene :: (Maybe Student, Maybe Topic) -> Text
-      gene (s, t) =
-        pretty s <> ": " <> pretty t
 
 -- |
 -- The priority value given by a student to a topic including the case of her not

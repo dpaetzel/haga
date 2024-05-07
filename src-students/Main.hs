@@ -4,7 +4,6 @@
 
 import Options.Applicative
 import Pipes
-import Pretty
 import Protolude hiding (for)
 import System.IO
 import Seminar
@@ -65,6 +64,6 @@ main =
   where
     format seminarL s = do
       let f = fitness' seminarL s
-      putErrText $ show f <> "\n" <> pretty s
+      putErrText $ show f <> "\n" <> output (AssignmentEnviroment (students prios, topics prios)) s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f

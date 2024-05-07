@@ -5,7 +5,6 @@
 
 import Options.Applicative
 import Pipes
-import Pretty
 import Protolude hiding (for)
 import System.IO
 -- import LambdaDatasets.IrisDataset
@@ -27,7 +26,7 @@ options =
       ( long "iterations"
           <> short 'i'
           <> metavar "N"
-          <> value 1500
+          <> value 1
           <> help "Number of iterations"
       )
     <*> option
@@ -35,7 +34,7 @@ options =
       ( long "population-size"
           <> short 'p'
           <> metavar "N"
-          <> value 400
+          <> value 100
           <> help "Population size"
       )
 
@@ -59,7 +58,7 @@ main =
       selectionType = Tournament 3,
       termination = (steps (iterations opts)),
       poulationSize = (populationSize opts),
-      stepSize = 120,
+      nParents = 120,
       elitismRatio = 5/100
     }
     pop' <- runEffect (for (run cfg) logCsv)
@@ -71,6 +70,6 @@ main =
   where
     format l s = do
       let f = fitness' l s
-      putErrText $ show f <> "\n" <> pretty s
+      putErrText $ show f <> "\n" <> output (lE) s
     logCsv = putText . csv
     csv (t, f) = show t <> " " <> show f

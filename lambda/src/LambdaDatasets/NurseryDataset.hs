@@ -5,7 +5,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module LambdaDatasets.NurseryDataset
-  ( module LambdaCalculus,
+  ( module LambdaCalculusV2,
     module LambdaDatasets.NurseryDataset,
     module LambdaDatasets.NurseryData,
     module GA,
@@ -19,8 +19,8 @@ import Data.Random.Distribution.Uniform
 import qualified Data.Text as T
 import Data.Tuple.Extra
 import GA
+import LambdaCalculusV2
 import LambdaDatasets.NurseryData
-import LambdaCalculus
 import qualified Language.Haskell.Interpreter as Hint
 import qualified Language.Haskell.Interpreter.Unsafe as Hint
 import Protolude
@@ -29,171 +29,111 @@ import System.Random.MWC (createSystemRandom)
 import qualified Type.Reflection as Ref
 import Utils
 
-lE :: LambdaEnviroment
+operators :: [BoundSymbol]
+operators = [ -- Math
+          -- Logic
+          BoundSymbol (Ref.TypeRep @(Bool -> Bool -> Bool)) (&&) (Just "(&&)"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Bool -> Bool)) (||) (Just "(||)"),
+          -- Ordered Enums
+          BoundSymbol (Ref.TypeRep @(NurseryClass -> NurseryClass -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(NurseryClass -> NurseryClass -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(NurseryClass -> NurseryClass -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(NurseryClass -> NurseryClass -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(Parents -> Parents -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(Parents -> Parents -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(Parents -> Parents -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(Parents -> Parents -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(HasNurs -> HasNurs -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(HasNurs -> HasNurs -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(HasNurs -> HasNurs -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(HasNurs -> HasNurs -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(Form -> Form -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(Form -> Form -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(Form -> Form -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(Form -> Form -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(Children -> Children -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(Children -> Children -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(Children -> Children -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(Children -> Children -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(Housing -> Housing -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(Housing -> Housing -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(Housing -> Housing -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(Housing -> Housing -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(Finance -> Finance -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(Finance -> Finance -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(Finance -> Finance -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(Finance -> Finance -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(Social -> Social -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(Social -> Social -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(Social -> Social -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(Social -> Social -> Bool)) (>=) (Just "(>=)"),
+          BoundSymbol (Ref.TypeRep @(Health -> Health -> Bool)) (>) (Just "(>)"),
+          BoundSymbol (Ref.TypeRep @(Health -> Health -> Bool)) (==) (Just "(==)"),
+          BoundSymbol (Ref.TypeRep @(Health -> Health -> Bool)) (/=) (Just "(/=)"),
+          BoundSymbol (Ref.TypeRep @(Health -> Health -> Bool)) (>=) (Just "(>=)"),
+          -- Eq Enum
+          -- Any Type
+          BoundSymbol (Ref.TypeRep @(Bool -> Int -> Int -> Int)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> NurseryClass -> NurseryClass -> NurseryClass)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Parents -> Parents -> Parents)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> HasNurs -> HasNurs -> HasNurs)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Form -> Form -> Form)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Children -> Children -> Children)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Housing -> Housing -> Housing)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Finance -> Finance -> Finance)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Social -> Social -> Social)) (if') (Just "if'"),
+          BoundSymbol (Ref.TypeRep @(Bool -> Health -> Health -> Health)) (if') (Just "if'")
+        ]
+
+
+lE :: LambdaEnviroment (Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass)
 lE =
   LambdaEnviroment
-    { functions =
-        Map.fromList
-          [ -- Math
-            -- Logic
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Bool -> Bool))), ["(&&)", "(||)"]),
-            -- Ordered Enums
-            ((Ref.SomeTypeRep (Ref.TypeRep @(NurseryClass -> NurseryClass -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Parents -> Parents -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(HasNurs -> HasNurs -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Form -> Form -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Children -> Children -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Housing -> Housing -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Finance -> Finance -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Social -> Social -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Health -> Health -> Bool))), ["(>)", "(==)", "(/=)", "(>=)"]),
-            -- Eq Enum
-            -- Any Type
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Int -> Int -> Int))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> NurseryClass -> NurseryClass -> NurseryClass))), ["if'","if'","if'","if'","if'","if'","if'","if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Parents -> Parents -> Parents))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> HasNurs -> HasNurs -> HasNurs))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Form -> Form -> Form))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Children -> Children -> Children))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Housing -> Housing -> Housing))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Finance -> Finance -> Finance))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Social -> Social -> Social))), ["if'"]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Bool -> Health -> Health -> Health))), ["if'"])
-          ],
+    { functions = operators,
       constants =
-        Map.fromList
-          [ ((Ref.SomeTypeRep (Ref.TypeRep @(Bool))), [(fmap show (uniform True False :: RVar Bool))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(NurseryClass))), [(fmap show (enumUniform NotRecommend SpecPriority))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Parents))), [(fmap show (enumUniform Usual GreatPret))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(HasNurs))), [(fmap show (enumUniform ProperNurs VeryCritNurs ))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Form))), [(fmap show (enumUniform CompleteFamilyForm FosterFamilyForm ))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Children))), [(fmap show (enumUniform OneChild MoreChilds ))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Housing))), [(fmap show (enumUniform ConvenientHousing CriticalHousing ))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Finance))), [(fmap show (enumUniform ConvenientFinance InconvFinance ))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Social))), [(fmap show (enumUniform NotProblematicSocial ProblematicSocial ))]),
-            ((Ref.SomeTypeRep (Ref.TypeRep @(Health))), [(fmap show (enumUniform NotRecommendHealth PriorityHealth ))])
+          [ ConstVal (Ref.TypeRep @(Bool)) (uniform True False),
+            ConstVal (Ref.TypeRep @(NurseryClass)) (enumUniform NotRecommend SpecPriority),
+            ConstVal (Ref.TypeRep @(Parents)) (enumUniform Usual GreatPret),
+            ConstVal (Ref.TypeRep @(HasNurs)) (enumUniform ProperNurs VeryCritNurs),
+            ConstVal (Ref.TypeRep @(Form)) (enumUniform CompleteFamilyForm FosterFamilyForm),
+            ConstVal (Ref.TypeRep @(Children)) (enumUniform OneChild MoreChilds),
+            ConstVal (Ref.TypeRep @(Housing)) (enumUniform ConvenientHousing CriticalHousing),
+            ConstVal (Ref.TypeRep @(Finance)) (enumUniform ConvenientFinance InconvFinance),
+            ConstVal (Ref.TypeRep @(Social)) (enumUniform NotProblematicSocial ProblematicSocial),
+            ConstVal (Ref.TypeRep @(Health)) (enumUniform NotRecommendHealth PriorityHealth)
           ],
-      targetType = (Ref.SomeTypeRep (Ref.TypeRep @(Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))),
-      maxDepth = 8,
+      maxDepth = 150,
       weights =
         ExpressionWeights
-          { lambdaSpucker = 1,
-            lambdaSchlucker = 2,
-            symbol = 30,
-            variable = 20,
-            constant = 5
-          }
+          { application = 2,
+            abstraction = 2,
+            variableReference = 300,
+            constant = 1,
+            functionBias = 100
+          },
+      mutationStrength = 10/150,
+      crossoverStrength = 15/150
     }
 
 trainingFraction :: R
-trainingFraction = (2/3)
+trainingFraction = (2 / 3)
 
-lEE :: LamdaExecutionEnv
+lEE :: ExecutionEnviroment (Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass)
 lEE =
-  LamdaExecutionEnv
+  ExecutionEnviroment
     { -- For now these need to define all available functions and types. Generic functions can be used.
-      imports = ["LambdaDatasets.NurseryDefinition"],
+      fun = operators,
       training = True,
-      trainingData =
-        ( map fst (takeFraktion trainingFraction nurseryTrainingData),
-          map snd (takeFraktion trainingFraction nurseryTrainingData)
-        ),
-      testData =
-        ( map fst (dropFraktion trainingFraction nurseryTrainingData),
-          map snd (dropFraktion trainingFraction nurseryTrainingData)
-        ),
-      exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))),
-      results = Map.empty
+      trainingData = nurseryTrainingData,
+      testData = nurseryTrainingData
     }
 
-shuffledLEE :: IO LamdaExecutionEnv
+shuffledLEE :: IO (ExecutionEnviroment (Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))
 shuffledLEE = do
-  mwc <- liftIO createSystemRandom
-  let smpl = ((sampleFrom mwc) :: RVar a -> IO a)
-  itD <- smpl $ shuffle nurseryTrainingData
   return
-    LamdaExecutionEnv
-      { -- For now these need to define all available functions and types. Generic functions can be used.
-        imports = ["LambdaDatasets.NurseryDefinition"],
+    ExecutionEnviroment
+      { fun = operators,
         training = True,
-        trainingData =
-          ( map fst (takeFraktion trainingFraction itD),
-            map snd (takeFraktion trainingFraction itD)
-          ),
-        testData =
-          ( map fst (dropFraktion trainingFraction itD),
-            map snd (dropFraktion trainingFraction itD)
-          ),
-        exTargetType = (Ref.SomeTypeRep (Ref.TypeRep @(Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass))),
-        results = Map.empty
+        trainingData = nurseryTrainingData,
+        testData = nurseryTrainingData
       }
-
-data LamdaExecutionEnv = LamdaExecutionEnv
-  { -- For now these need to define all available functions and types. Generic functions can be used.
-    imports :: [Text],
-    training :: Bool,
-    trainingData :: ([(Parents, HasNurs, Form, Children, Housing, Finance, Social, Health)], [NurseryClass]),
-    testData :: ([(Parents, HasNurs, Form, Children, Housing, Finance, Social, Health)], [NurseryClass]),
-    exTargetType :: TypeRep,
-    -- todo: kindaHacky
-    results :: Map TypeRequester FittnesRes
-  }
-
-data FittnesRes = FittnesRes
-  { total :: R,
-    fitnessTotal :: R,
-    fitnessGeoMean :: R,
-    fitnessMean :: R,
-    accuracy :: R,
-    biasSize :: R,
-    totalSize :: N
-  }
-  deriving (Show)
-
-instance Fitness FittnesRes where
-  getR = total
-
-instance Evaluator TypeRequester LamdaExecutionEnv FittnesRes where
-  fitness' env tr = (results env) Map.! tr
-
-  calc env pop = do
-    let relevantResults = Map.filterWithKey (\k _ -> contains pop k) (results env)
-    let toAdd = NE.filter (\k -> not (Map.member k relevantResults)) pop
-    toInsert <- Hint.runInterpreter (evalResults env toAdd)
-    let insertPair (key, val) m = Map.insert key val m
-    let res = foldr insertPair relevantResults (fromRight (error ("To insert is " <> show toInsert)) toInsert)
-    return env {results = res}
-
-dset :: LamdaExecutionEnv -> ([(Parents, HasNurs, Form, Children, Housing, Finance, Social, Health)], [NurseryClass])
-dset lEE = if training lEE then trainingData lEE else testData lEE
-
-evalResults :: LamdaExecutionEnv -> [TypeRequester] -> Hint.InterpreterT IO [(TypeRequester, FittnesRes)]
-evalResults ex trs = do
-  Hint.setImports $ (map T.unpack (imports ex)) ++ ["Protolude"]
-  Hint.unsafeSetGhcOption "-O2"
-  let arrayOfFunctionText = map toLambdaExpressionS trs
-  let textOfFunctionArray = "[" <> T.intercalate "," arrayOfFunctionText <> "]"
-  result <- Hint.interpret (T.unpack (textOfFunctionArray)) (Hint.as :: [Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass])
-  return $ zipWith (evalResult ex) trs result
-
-
-evalResult :: LamdaExecutionEnv -> TypeRequester -> (Parents -> HasNurs -> Form -> Children -> Housing -> Finance -> Social -> Health -> NurseryClass) -> (TypeRequester, FittnesRes)
-evalResult ex tr result = ( tr,
-      FittnesRes
-        { total = acc * 100 + (biasSmall - 1),
-          fitnessTotal = fitness',
-          fitnessMean = meanOfAccuricyPerClass resAndTarget,
-          fitnessGeoMean = geomeanOfDistributionAccuracy resAndTarget,
-          accuracy = acc,
-          biasSize = biasSmall,
-          totalSize = countTrsR tr
-        }
-    )
-    where
-    res = map (\(a, b, c, d, e, f, g, h) -> result a b c d e f g h) (fst (dset ex))
-    resAndTarget = (zip (snd (dset ex)) res)
-    acc = (foldr (\ts s -> if ((fst ts) == (snd ts)) then s + 1 else s) 0 resAndTarget) / fromIntegral (length resAndTarget)
-    biasSmall = exp ((-(fromIntegral (countTrsR tr))) / 1000) -- 0 (schlecht) bis 1 (gut)
-    fitness' = meanOfAccuricyPerClass resAndTarget
-    score = fitness' + (biasSmall - 1)
-

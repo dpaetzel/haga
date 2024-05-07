@@ -24,7 +24,7 @@
 -- In order to use it for a certain problem, basically, you have to make your
 -- solution type an instance of 'Individual' and then simply call the 'run'
 -- function.
-module GA (Environment (..), Fitness (..), Evaluator (..), Individual (..), GA.run, Tournament (..), N, R, Population, steps, bests, runTests, GaRunConfig (..)) where
+module GA (Environment (..), Fitness (..), Evaluator (..), Individual, GA.run, Tournament (..), N, R, Population, steps, bests, runTests, GaRunConfig (..)) where
 
 import Control.Arrow hiding (first, second)
 import Data.List.NonEmpty ((<|))
@@ -51,7 +51,9 @@ type R = Double
 -- |
 --  An Environment that Individuals of type i can be created from
 --  It stores all information required to create and change Individuals correctly
-class (Pretty e, Individual i) => Environment i e | e -> i, i -> e where
+class (Individual i) => Environment i e | e -> i, i -> e where
+  output :: e -> i -> Text
+
   -- |
   --  Generates a completely random individual.
   new :: e -> RVar i
@@ -88,7 +90,7 @@ class (Pretty e, Individual i) => Environment i e | e -> i, i -> e where
 -- |
 --  An Evaluator that Individuals of type i can be evaluated by
 --  It stores all information required to evaluate an individuals fitness
-class (Individual i, Fitness r) => Evaluator i e r | e -> i r, i -> e where
+class (Individual i, Fitness r) => Evaluator i e r | e -> i r where
   -- |
   --  An individual's fitness. Higher values are considered “better”.
   --
@@ -107,10 +109,9 @@ class (Individual i, Fitness r) => Evaluator i e r | e -> i r, i -> e where
   -- It is guaranteed that the e passed to fitness is the result of a calc function, where the individual was part of the Population passed.
   -- It may be smart to reuse known results between invocations.
   calc :: e -> Population i -> IO e
-  calc eval _ = do
-    return eval
+  calc eval _ = return eval
 
-class (Pretty i, Ord i) => Individual i
+class (Ord i) => Individual i
 
 class (Show i) => Fitness i where
   getR :: i -> R
@@ -324,18 +325,18 @@ shuffle' :: NonEmpty a -> RVar (NonEmpty a)
 shuffle' xs@(_ :| []) = return xs
 shuffle' xs = fmap (NE.fromList) (shuffle (toList xs))
 
-instance Pretty Integer where
-  pretty i = "Found int: " <> show i
 
 instance Individual Integer
 
-newtype IntTestEnviroment = IntTestEnviroment ((Integer, Integer), Integer, N) deriving (Eq) -- IntTestEnviroment ((0,100000),10)
+newtype IntTestEnviroment = IntTestEnviroment ((Integer, Integer), Integer, N) deriving (Eq, Show) -- IntTestEnviroment ((0,100000),10)
 
 instance Pretty IntTestEnviroment where
   -- instance Pretty (Maybe Student) where
   pretty (IntTestEnviroment ((i, j), k, _)) = "IntTestEnviroment of Individuals between " <> (show i) <> " and " <> (show j) <> " variance when mutating is " <> (show k)
 
 instance Environment Integer IntTestEnviroment where
+  output _ i = "Found int: " <> show i
+
   new (IntTestEnviroment ((from, to), _, _)) = uniform from to
 
   nX (IntTestEnviroment ((_, _), _, n)) = n
